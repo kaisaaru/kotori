@@ -53,7 +53,7 @@ export default function ReaderPage() {
     text: string;
     position: { x: number; y: number };
   } | null>(null);
-  const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Detect highlighted/blocked text selection for dictionary popup
   useEffect(() => {
