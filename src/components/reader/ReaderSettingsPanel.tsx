@@ -11,9 +11,12 @@ import {
   Minus,
   Plus,
   Check,
+  Trash2,
 } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
 import type { ReaderSettings } from "@/types/book";
 import { FONT_FAMILIES } from "@/types/book";
+import { dictionaryService, CustomDictionaryMeta } from "@/services/dictionary-service";
 
 interface ReaderSettingsPanelProps {
   settings: ReaderSettings;
@@ -26,6 +29,21 @@ export default function ReaderSettingsPanel({
   onSettingsChange,
   onClose,
 }: ReaderSettingsPanelProps) {
+  const [customDicts, setCustomDicts] = useState<CustomDictionaryMeta[]>([]);
+
+  const refreshCustomDicts = useCallback(async () => {
+    const list = await dictionaryService.getCustomDictionaries();
+    setCustomDicts(list);
+  }, []);
+
+  useEffect(() => {
+    refreshCustomDicts();
+  }, [refreshCustomDicts]);
+
+  const handleDeleteDict = async (name: string) => {
+    await dictionaryService.deleteCustomDictionary(name);
+    await refreshCustomDicts();
+  };
   return (
     <>
       {/* Backdrop */}
@@ -449,8 +467,8 @@ export default function ReaderSettingsPanel({
             </div>
           </SettingSection>
 
-          {/* Yomitan Dictionary Section */}
-          <SettingSection label="Kamus Yomitan / Dictionary">
+          {/* Yomitan Dictionary Manager Section */}
+          <SettingSection label="Kelola Kamus Kustom / Custom Dictionaries">
             <div
               style={{
                 borderRadius: "14px",
@@ -459,28 +477,102 @@ export default function ReaderSettingsPanel({
                 border: "1px solid var(--kb-border-subtle)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "10px",
+                gap: "12px",
               }}
             >
               <div style={{ fontSize: "12px", color: "var(--kb-text-secondary)", lineHeight: 1.5 }}>
-                Impor file <b>.zip</b> kamus Yomitan (JIDict, Jitendex, Sanseido, NHK Pitch, JLPT) untuk fitur Pop-up Bedah Teks.
+                Impor & Kelola file <b>.zip</b> kamus Yomitan kustom Anda (JIDict, Jitendex, Sanseido, dll.).
               </div>
-              <input
-                type="file"
-                accept=".zip"
-                multiple
-                onChange={async (e) => {
-                  if (e.target.files) {
-                    const { dictionaryService } = await import("@/services/dictionary-service");
-                    for (let i = 0; i < e.target.files.length; i++) {
-                      const file = e.target.files[i];
-                      await dictionaryService.loadZipDictionary(file, file.name);
-                    }
-                    alert("Kamus Yomitan berhasil di-impor ke Kotoba Reader!");
-                  }
+
+              {/* Upload Input */}
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  backgroundColor: "var(--kb-surface)",
+                  border: "1px dashed var(--kb-primary)",
+                  color: "var(--kb-primary)",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.2s ease",
                 }}
-                style={{ fontSize: "12px", color: "var(--kb-text)", cursor: "pointer" }}
-              />
+              >
+                + Tambah Kamus ZIP Baru
+                <input
+                  type="file"
+                  accept=".zip"
+                  multiple
+                  onChange={async (e) => {
+                    if (e.target.files) {
+                      for (let i = 0; i < e.target.files.length; i++) {
+                        const file = e.target.files[i];
+                        await dictionaryService.loadZipDictionary(file, file.name);
+                      }
+                      await refreshCustomDicts();
+                      alert("Kamus Yomitan berhasil ditambahkan!");
+                    }
+                  }}
+                  style={{ display: "none" }}
+                />
+              </label>
+
+              {/* List of Uploaded Custom Dictionaries */}
+              {customDicts.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--kb-text-muted)" }}>
+                    Kamus Terinstal ({customDicts.length}):
+                  </div>
+                  {customDicts.map((dict) => (
+                    <div
+                      key={dict.name}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        borderRadius: "10px",
+                        backgroundColor: "var(--kb-surface)",
+                        border: "1px solid var(--kb-border-subtle)",
+                      }}
+                    >
+                      <div style={{ overflow: "hidden" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--kb-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {dict.name}
+                        </div>
+                        <div style={{ fontSize: "10px", color: "var(--kb-text-muted)" }}>
+                          {(dict.size / (1024 * 1024)).toFixed(1)} MB
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteDict(dict.name)}
+                        title="Hapus Kamus Ini"
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "8px",
+                          border: "none",
+                          backgroundColor: "rgba(239, 68, 68, 0.15)",
+                          color: "#ef4444",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          marginLeft: "8px",
+                        }}
+                      >
+                        <Trash2 style={{ width: "14px", height: "14px" }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </SettingSection>
         </div>
