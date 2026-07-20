@@ -878,7 +878,7 @@ function BookCard({
       </div>
 
       {/* Card Info Content */}
-      <div style={{ padding: "16px", flex: 1, display: "flex", flexDirection: "column", justifyBetween: "space-between" }}>
+      <div style={{ padding: "16px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
         <div>
           <h3
             style={{
