@@ -35,6 +35,7 @@ export interface ReaderSettings {
   letterSpacing: number;
   margin: "compact" | "normal" | "wide";
   readerWidth: "narrow" | "medium" | "wide" | "full";
+  ttsSpeed: number;
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
@@ -46,6 +47,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   letterSpacing: 0,
   margin: "normal",
   readerWidth: "medium",
+  ttsSpeed: 0.8,
 };
 
 export const FONT_FAMILIES = [

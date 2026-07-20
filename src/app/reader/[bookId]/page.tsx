@@ -63,28 +63,45 @@ export default function ReaderPage() {
         return;
       }
 
-      const text = selection.toString().trim();
-      if (text.length > 0 && text.length <= 50) {
-        try {
-          const range = selection.getRangeAt(0);
-          const rect = range.getBoundingClientRect();
+      let text = "";
+      let rect: DOMRect | null = null;
 
-          setSelectionState({
-            text,
-            position: {
-              x: rect.left + rect.width / 2,
-              y: rect.top,
-            },
-          });
-        } catch (err) {
-          console.warn("Could not get selection range:", err);
-        }
+      try {
+        const range = selection.getRangeAt(0);
+        rect = range.getBoundingClientRect();
+
+        const container = document.createElement("div");
+        container.appendChild(range.cloneContents());
+
+        // Strip HTML <rt> and <rp> Furigana elements from selection
+        const rtElements = container.querySelectorAll("rt, rp");
+        rtElements.forEach((el) => el.remove());
+
+        text = container.textContent?.trim() || "";
+      } catch {
+        text = selection.toString().trim();
+      }
+
+      if (!text) {
+        text = selection.toString().trim();
+      }
+
+      if (text.length > 0 && text.length <= 50 && rect) {
+        setSelectionState({
+          text,
+          position: {
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+          },
+        });
       }
     };
 
     document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("touchend", handleMouseUp);
     return () => {
       document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("touchend", handleMouseUp);
     };
   }, []);
 
@@ -380,17 +397,18 @@ export default function ReaderPage() {
     >
       {/* ===== Top Toolbar ===== */}
       <header
+        className="kb-reader-header"
         style={{
-          position: "absolute",
+          position: "fixed",
           top: 0,
           left: 0,
           right: 0,
+          height: "60px",
           zIndex: 40,
-          height: "64px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 32px",
+          padding: "0 24px",
           backgroundColor: "var(--kb-toolbar-bg)",
           backdropFilter: "blur(16px)",
           WebkitBackdropFilter: "blur(16px)",
@@ -401,7 +419,7 @@ export default function ReaderPage() {
         }}
       >
         {/* Left: Back + title */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1, marginRight: "16px" }}>
+        <div className="kb-reader-left-section" style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0, flexShrink: 1, marginRight: "12px" }}>
           <button
             onClick={() => router.push("/")}
             style={{
@@ -425,13 +443,14 @@ export default function ReaderPage() {
             <ArrowLeft style={{ width: "16px", height: "16px" }} />
           </button>
           <p
+            className="kb-reader-book-title"
             style={{
               fontSize: "14px",
               fontWeight: 700,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              maxWidth: "280px",
+              maxWidth: "240px",
             }}
           >
             {book.title}
@@ -440,11 +459,12 @@ export default function ReaderPage() {
 
         {/* Center: Chapter info */}
         <div
+          className="kb-reader-chapter-pill"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "8px",
-            padding: "6px 14px",
+            gap: "6px",
+            padding: "6px 12px",
             borderRadius: "20px",
             fontSize: "12px",
             fontWeight: 600,
@@ -452,10 +472,10 @@ export default function ReaderPage() {
             border: "1px solid var(--kb-border-subtle)",
             color: "var(--kb-text-muted)",
             flexShrink: 0,
-            margin: "0 16px",
+            margin: "0 8px",
           }}
         >
-          <span style={{ maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span className="kb-reader-chapter-text" style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {currentChapter.title}
           </span>
           <span>·</span>
@@ -465,7 +485,7 @@ export default function ReaderPage() {
         </div>
 
         {/* Right: Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0, marginLeft: "16px" }}>
+        <div className="kb-reader-right-section" style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, marginLeft: "12px" }}>
           <button
             onClick={() => { setTocOpen(!isTocOpen); setSettingsOpen(false); }}
             style={{

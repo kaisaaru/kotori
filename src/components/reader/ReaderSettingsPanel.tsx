@@ -402,6 +402,53 @@ export default function ReaderSettingsPanel({
             </SettingSection>
           )}
 
+          {/* TTS Speech Speed Section */}
+          <SettingSection label="Kecepatan Suara TTS / Speech Speed">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: "6px",
+                backgroundColor: "var(--kb-bg-secondary)",
+                borderRadius: "12px",
+                padding: "4px",
+                border: "1px solid var(--kb-border-subtle)",
+              }}
+            >
+              {[
+                { label: "0.5x", value: 0.5 },
+                { label: "0.75x", value: 0.75 },
+                { label: "0.85x", value: 0.85 },
+                { label: "1.0x", value: 1.0 },
+                { label: "1.25x", value: 1.25 },
+              ].map((speed) => {
+                const currentSpeed = settings.ttsSpeed ?? 0.85;
+                const isActive = currentSpeed === speed.value;
+                return (
+                  <button
+                    key={speed.value}
+                    onClick={() => onSettingsChange({ ttsSpeed: speed.value })}
+                    style={{
+                      borderRadius: "8px",
+                      padding: "8px 2px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      backgroundColor: isActive ? "var(--kb-surface)" : "transparent",
+                      color: isActive ? "var(--kb-primary)" : "var(--kb-text-secondary)",
+                      boxShadow: isActive ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+                      border: isActive ? "1px solid var(--kb-border)" : "1px solid transparent",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      textAlign: "center",
+                    }}
+                  >
+                    {speed.label}
+                  </button>
+                );
+              })}
+            </div>
+          </SettingSection>
+
           {/* Yomitan Dictionary Section */}
           <SettingSection label="Kamus Yomitan / Dictionary">
             <div

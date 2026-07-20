@@ -235,3 +235,81 @@ body {
 .animate-slide-left { animation: slideInLeft 0.3s ease-out; }
 .animate-scale-in { animation: scaleIn 0.2s ease-out; }
 .animate-spin { animation: spin 1s linear infinite; }
+
+/* ===== Mobile Responsive Rules ===== */
+@media (max-width: 768px) {
+  .kb-header-inner {
+    padding: 12px 16px !important;
+    height: auto !important;
+    min-height: 60px;
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+
+  .kb-logo-subtitle {
+    display: none !important;
+  }
+
+  .kb-search-container {
+    order: 3;
+    width: 100% !important;
+    margin-top: 4px;
+  }
+
+  .kb-search-input {
+    width: 100% !important;
+  }
+
+  .kb-main-container {
+    padding: 20px 16px 40px 16px !important;
+  }
+
+  .kb-book-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .kb-book-title {
+    font-size: 13px !important;
+    min-height: 36px !important;
+  }
+
+  /* Reader Toolbar Mobile */
+  .kb-reader-header {
+    padding: 0 12px !important;
+  }
+
+  .kb-reader-left-section {
+    margin-right: 6px !important;
+  }
+
+  .kb-reader-book-title {
+    display: none !important;
+  }
+
+  .kb-reader-chapter-pill {
+    margin: 0 6px !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .kb-reader-chapter-text {
+    max-width: 80px !important;
+  }
+
+  .kb-reader-right-section {
+    margin-left: 6px !important;
+    gap: 6px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .kb-book-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .kb-add-button-text {
+    display: none !important;
+  }
+}
