@@ -76,6 +76,10 @@ class DictionaryService {
     }
   }
 
+  async loadZipDictionary(_file: Blob | File, _filename?: string): Promise<void> {
+    return Promise.resolve();
+  }
+
   hasLoadedDictionaries(): boolean {
     return true;
   }
