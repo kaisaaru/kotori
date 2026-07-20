@@ -1,3 +1,5 @@
+import { openDB, IDBPDatabase } from "idb";
+
 export interface DictDefinition {
   dictName: string;
   expression: string;
@@ -32,6 +34,31 @@ export interface LookupResult {
     meanings: string[];
     dictName?: string;
   }[];
+}
+
+export interface CustomDictionaryMeta {
+  name: string;
+  filename: string;
+  size: number;
+  uploadedAt: number;
+}
+
+const DB_NAME = "kotoba-custom-dictionaries";
+const DB_VERSION = 1;
+
+let dbPromise: Promise<IDBPDatabase> | null = null;
+
+function getDictDB() {
+  if (!dbPromise) {
+    dbPromise = openDB(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("dictionaries")) {
+          db.createObjectStore("dictionaries", { keyPath: "name" });
+        }
+      },
+    });
+  }
+  return dbPromise;
 }
 
 class DictionaryService {
@@ -76,8 +103,36 @@ class DictionaryService {
     }
   }
 
-  async loadZipDictionary(_file: Blob | File, _filename?: string): Promise<void> {
-    return Promise.resolve();
+  async loadZipDictionary(file: Blob | File, filename?: string): Promise<void> {
+    const db = await getDictDB();
+    const name = filename || (file instanceof File ? file.name : "Kamus Custom.zip");
+    const meta: CustomDictionaryMeta = {
+      name,
+      filename: name,
+      size: file.size,
+      uploadedAt: Date.now(),
+    };
+    await db.put("dictionaries", meta);
+    this.cache.clear();
+  }
+
+  async getCustomDictionaries(): Promise<CustomDictionaryMeta[]> {
+    try {
+      const db = await getDictDB();
+      return await db.getAll("dictionaries");
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteCustomDictionary(name: string): Promise<void> {
+    try {
+      const db = await getDictDB();
+      await db.delete("dictionaries", name);
+      this.cache.clear();
+    } catch (err) {
+      console.warn("Delete custom dictionary error:", err);
+    }
   }
 
   hasLoadedDictionaries(): boolean {
