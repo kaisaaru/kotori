@@ -60,7 +60,7 @@ function cleanMeaningString(text: any): string {
       const parsed = JSON.parse(text);
       const cleaned = parseStructuredNode(parsed).trim();
       if (cleaned) return cleaned;
-    } catch (e) {
+    } catch {
       return text
         .replace(/\{"type":"[^"]+","content":|\[|\{|\}|"tag":"[^"]+"|"data":\{[^}]+\}|"style":\{[^}]+\}/g, "")
         .replace(/["\\]/g, "")
@@ -164,7 +164,7 @@ async function buildServerIndexInBackground() {
             const indexText = await indexFile.async("string");
             const indexJson = JSON.parse(indexText);
             if (indexJson.title) dictTitle = indexJson.title;
-          } catch (e) {}
+          } catch {}
         }
 
         const termFiles = Object.keys(contents.files).filter((name) =>
