@@ -30,6 +30,7 @@ export default function ReaderSettingsPanel({
   onClose,
 }: ReaderSettingsPanelProps) {
   const [customDicts, setCustomDicts] = useState<CustomDictionaryMeta[]>([]);
+  const [dictStatus, setDictStatus] = useState<{ isReady: boolean; isBuilding: boolean; totalTerms: number; totalKanji: number } | null>(null);
 
   const refreshCustomDicts = useCallback(async () => {
     const list = await dictionaryService.getCustomDictionaries();
@@ -39,6 +40,29 @@ export default function ReaderSettingsPanel({
   useEffect(() => {
     refreshCustomDicts();
   }, [refreshCustomDicts]);
+
+  useEffect(() => {
+    let mounted = true;
+    let timer: NodeJS.Timeout | null = null;
+
+    async function check() {
+      const status = await dictionaryService.getStatus();
+      if (mounted) {
+        setDictStatus(status);
+        if (status.isReady && timer) {
+          clearInterval(timer);
+        }
+      }
+    }
+
+    check();
+    timer = setInterval(check, 4000);
+
+    return () => {
+      mounted = false;
+      if (timer) clearInterval(timer);
+    };
+  }, []);
 
   const handleDeleteDict = async (name: string) => {
     await dictionaryService.deleteCustomDictionary(name);
@@ -482,6 +506,43 @@ export default function ReaderSettingsPanel({
             >
               <div style={{ fontSize: "12px", color: "var(--kb-text-secondary)", lineHeight: 1.5 }}>
                 Impor & Kelola file <b>.zip</b> kamus Yomitan kustom Anda (JIDict, Jitendex, Sanseido, dll.).
+              </div>
+
+              {/* Server Dictionary Status Badge */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  backgroundColor: dictStatus?.isReady ? "rgba(34, 197, 94, 0.12)" : "rgba(234, 179, 8, 0.12)",
+                  border: `1px solid ${dictStatus?.isReady ? "rgba(34, 197, 94, 0.3)" : "rgba(234, 179, 8, 0.3)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: dictStatus?.isReady ? "#22c55e" : "#eab308",
+                      boxShadow: `0 0 8px ${dictStatus?.isReady ? "#22c55e" : "#eab308"}`,
+                    }}
+                  />
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: dictStatus?.isReady ? "#22c55e" : "#eab308" }}>
+                    {dictStatus?.isReady
+                      ? "Kamus Bawaan Aktif & Siap"
+                      : dictStatus?.isBuilding
+                      ? "Sedang Membaca & Mengindeks Kamus..."
+                      : "Memeriksa Status Kamus..."}
+                  </span>
+                </div>
+                {dictStatus?.totalTerms ? (
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
+                    {dictStatus.totalTerms.toLocaleString()} Entri
+                  </span>
+                ) : null}
               </div>
 
               {/* Upload Input */}

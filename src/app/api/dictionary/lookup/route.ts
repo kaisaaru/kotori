@@ -132,15 +132,42 @@ function initCoreFallbacks() {
   }
 }
 
+const CACHE_FILE = path.join(process.cwd(), ".next", "dict-cache-v1.json");
+
 async function buildServerIndexInBackground() {
-  if (isIndexBuilding) return;
+  if (isIndexReady || isIndexBuilding) return;
   isIndexBuilding = true;
+
+  // Try loading pre-built disk cache (< 10ms instant load on refresh)
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      const cachedData = JSON.parse(fs.readFileSync(CACHE_FILE, "utf-8"));
+      if (cachedData.terms && cachedData.terms.length > 0) {
+        for (const [k, v] of cachedData.terms) {
+          termMap.set(k, v);
+        }
+        for (const [k, v] of cachedData.kanji) {
+          kanjiMap.set(k, v);
+        }
+        isIndexReady = true;
+        isIndexBuilding = false;
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not load dict disk cache:", err);
+  }
 
   initCoreFallbacks();
 
-  const refDir = path.join(process.cwd(), "reference", "kotoba-rumus");
+  let refDir = path.join(process.cwd(), "reference", "kotoba-rumus");
+  if (!fs.existsSync(refDir)) {
+    refDir = path.join(process.cwd(), "reference");
+  }
+
   if (!fs.existsSync(refDir)) {
     isIndexReady = true;
+    isIndexBuilding = false;
     return;
   }
 
@@ -237,20 +264,47 @@ async function buildServerIndexInBackground() {
         console.warn(`Error indexing server dictionary ${filename}:`, err);
       }
     }
+
+    // Save persistent disk cache for instant loading on future refreshes
+    try {
+      const cacheDir = path.dirname(CACHE_FILE);
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+      fs.writeFileSync(
+        CACHE_FILE,
+        JSON.stringify({
+          terms: Array.from(termMap.entries()),
+          kanji: Array.from(kanjiMap.entries()),
+        })
+      );
+    } catch (e) {
+      console.warn("Failed to write dict disk cache:", e);
+    }
   } catch (err) {
     console.error("Server dictionary index error:", err);
   }
 
   isIndexReady = true;
+  isIndexBuilding = false;
 }
 
 export async function GET(request: Request) {
   initCoreFallbacks();
-  if (!isIndexReady) {
+  if (!isIndexReady && !isIndexBuilding) {
     buildServerIndexInBackground();
   }
 
   const { searchParams } = new URL(request.url);
+
+  // Status check endpoint for client dictionary readiness indicator
+  if (searchParams.has("status")) {
+    return NextResponse.json({
+      isReady: isIndexReady,
+      isBuilding: isIndexBuilding,
+      totalTerms: termMap.size,
+      totalKanji: kanjiMap.size,
+    });
+  }
+
   const q = searchParams.get("q")?.trim() || "";
 
   const cleanQuery = q.substring(0, 50);

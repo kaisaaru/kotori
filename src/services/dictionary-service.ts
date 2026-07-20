@@ -106,20 +106,28 @@ class DictionaryService {
   async loadZipDictionary(file: Blob | File, filename?: string): Promise<void> {
     const db = await getDictDB();
     const name = filename || (file instanceof File ? file.name : "Kamus Custom.zip");
-    const meta: CustomDictionaryMeta = {
+    const arrayBuffer = await file.arrayBuffer();
+    const record = {
       name,
       filename: name,
       size: file.size,
       uploadedAt: Date.now(),
+      data: arrayBuffer,
     };
-    await db.put("dictionaries", meta);
+    await db.put("dictionaries", record);
     this.cache.clear();
   }
 
   async getCustomDictionaries(): Promise<CustomDictionaryMeta[]> {
     try {
       const db = await getDictDB();
-      return await db.getAll("dictionaries");
+      const all = await db.getAll("dictionaries");
+      return all.map((item) => ({
+        name: item.name,
+        filename: item.filename,
+        size: item.size,
+        uploadedAt: item.uploadedAt,
+      }));
     } catch {
       return [];
     }
@@ -132,6 +140,15 @@ class DictionaryService {
       this.cache.clear();
     } catch (err) {
       console.warn("Delete custom dictionary error:", err);
+    }
+  }
+
+  async getStatus(): Promise<{ isReady: boolean; isBuilding: boolean; totalTerms: number; totalKanji: number }> {
+    try {
+      const res = await fetch("/api/dictionary/lookup?status=1");
+      return await res.json();
+    } catch {
+      return { isReady: true, isBuilding: false, totalTerms: 0, totalKanji: 0 };
     }
   }
 
