@@ -149,6 +149,7 @@ export default function HomePage() {
         }}
       >
         <div
+          className="kb-header-inner"
           style={{
             maxWidth: "1320px",
             margin: "0 auto",
@@ -188,10 +189,44 @@ export default function HomePage() {
               <h1 style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
                 Kotoba Reader
               </h1>
-              <p style={{ fontSize: "12px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "1px" }}>
+              <p className="kb-logo-subtitle" style={{ fontSize: "12px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "1px" }}>
                 Japanese Novel Reader
               </p>
             </div>
+          </div>
+
+          {/* Search Input (Moves to 2nd row on mobile) */}
+          <div className="kb-search-container" style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search
+              style={{
+                position: "absolute",
+                left: "14px",
+                width: "16px",
+                height: "16px",
+                color: "var(--kb-text-muted)",
+                pointerEvents: "none",
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search books or authors..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="kb-search-input"
+              style={{
+                height: "40px",
+                width: "240px",
+                paddingLeft: "42px",
+                paddingRight: "16px",
+                fontSize: "13px",
+                backgroundColor: "var(--kb-bg-secondary)",
+                border: "1px solid var(--kb-border)",
+                color: "var(--kb-text)",
+                borderRadius: "12px",
+                outline: "none",
+                transition: "all 0.2s ease",
+              }}
+            />
           </div>
 
           {/* Right side controls */}
@@ -199,43 +234,10 @@ export default function HomePage() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "14px",
+              gap: "10px",
               flexShrink: 0,
             }}
           >
-            {/* Search Input */}
-            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <Search
-                style={{
-                  position: "absolute",
-                  left: "14px",
-                  width: "16px",
-                  height: "16px",
-                  color: "var(--kb-text-muted)",
-                  pointerEvents: "none",
-                }}
-              />
-              <input
-                type="text"
-                placeholder="Search books or authors..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  height: "40px",
-                  width: "240px",
-                  paddingLeft: "42px",
-                  paddingRight: "16px",
-                  fontSize: "13px",
-                  backgroundColor: "var(--kb-bg-secondary)",
-                  border: "1px solid var(--kb-border)",
-                  color: "var(--kb-text)",
-                  borderRadius: "12px",
-                  outline: "none",
-                  transition: "all 0.2s ease",
-                }}
-              />
-            </div>
-
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
@@ -267,8 +269,8 @@ export default function HomePage() {
               onClick={() => fileInputRef.current?.click()}
               style={{
                 height: "40px",
-                paddingLeft: "20px",
-                paddingRight: "20px",
+                paddingLeft: "16px",
+                paddingRight: "16px",
                 backgroundColor: "var(--kb-primary)",
                 color: "white",
                 fontSize: "14px",
@@ -286,7 +288,7 @@ export default function HomePage() {
               }}
             >
               <Plus style={{ width: "16px", height: "16px", strokeWidth: 2.5 }} />
-              <span>Add Book</span>
+              <span className="kb-add-button-text">Add Book</span>
             </button>
 
             <input
@@ -306,6 +308,7 @@ export default function HomePage() {
 
       {/* ===== Main Content ===== */}
       <main
+        className="kb-main-container"
         style={{
           flex: 1,
           maxWidth: "1320px",
@@ -513,10 +516,11 @@ export default function HomePage() {
 
             {/* Grid */}
             <div
+              className="kb-book-grid"
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))",
-                gap: "32px",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: "24px",
               }}
             >
               {filteredBooks.map((book) => (
@@ -881,6 +885,7 @@ function BookCard({
       <div style={{ padding: "16px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
         <div>
           <h3
+            className="kb-book-title"
             style={{
               fontSize: "14px",
               fontWeight: 700,

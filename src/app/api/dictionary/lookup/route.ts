@@ -334,8 +334,10 @@ export async function GET(request: Request) {
     }
   }
 
-  const topReading = matchedTerms.length > 0 ? matchedTerms[0].reading : "";
-  const finalReading = topReading || computedReading || cleanQuery;
+  const exactTermMatch = matchedTerms.find((t) => t.expression === cleanQuery);
+  const finalReading = (exactTermMatch && exactTermMatch.reading)
+    ? exactTermMatch.reading
+    : (computedReading || cleanQuery);
 
   return NextResponse.json({
     query: cleanQuery,

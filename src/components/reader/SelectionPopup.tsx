@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { X, Volume2, BookOpen, Layers, Type } from "lucide-react";
 import { dictionaryService, LookupResult } from "@/services/dictionary-service";
+import { useReaderStore } from "@/stores/reader-store";
 
 interface SelectionPopupProps {
   selectedText: string;
@@ -80,14 +81,17 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
     };
   }, [selectedText]);
 
-  // Audio pronunciation via Web Speech API using exact Hiragana reading
+  // Audio pronunciation via Web Speech API using exact Hiragana reading & ttsSpeed setting
+  const { settings } = useReaderStore();
+  const ttsRate = settings?.ttsSpeed ?? 0.8;
+
   const handlePronounce = () => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const textToSpeak = lookupData?.reading || selectedText;
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
       utterance.lang = "ja-JP";
-      utterance.rate = 0.95;
+      utterance.rate = ttsRate;
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -95,9 +99,9 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
   if (!selectedText.trim()) return null;
 
   // Compute position relative to viewport
-  const popupWidth = 360;
-  const left = Math.min(Math.max(16, position.x - popupWidth / 2), window.innerWidth - popupWidth - 24);
-  const top = Math.max(16, position.y - 180);
+  const popupWidth = Math.min(360, window.innerWidth - 32);
+  const left = Math.min(Math.max(16, position.x - popupWidth / 2), window.innerWidth - popupWidth - 16);
+  const top = Math.max(16, position.y - 190);
 
   return (
     <div
@@ -114,7 +118,7 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
         border: "1px solid rgba(255, 255, 255, 0.14)",
         boxShadow: "0 20px 48px rgba(0, 0, 0, 0.5)",
         color: "#ffffff",
-        padding: "18px",
+        padding: "16px",
         display: "flex",
         flexDirection: "column",
         gap: "14px",
@@ -123,37 +127,44 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header Bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
           <span
             style={{
-              fontSize: "20px",
+              fontSize: "18px",
               fontWeight: 800,
               fontFamily: "'Hiragino Mincho ProN', 'Yu Mincho', serif",
               color: "#38bdf8",
+              lineHeight: 1.35,
+              wordBreak: "break-word",
             }}
           >
             {selectedText}
           </span>
           {lookupData?.reading && lookupData.reading !== selectedText && (
-            <span style={{ fontSize: "13px", color: "#cbd5e1" }}>
+            <span style={{ fontSize: "12px", color: "#cbd5e1", wordBreak: "break-word" }}>
               [{lookupData.reading}]
             </span>
           )}
+        </div>
+
+        {/* Action Buttons (Voice + Close) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
           <button
             onClick={handlePronounce}
             title="Dengarkan pengucapan"
             style={{
               borderRadius: "50%",
-              width: "30px",
-              height: "30px",
+              width: "32px",
+              height: "32px",
               backgroundColor: "rgba(56, 189, 248, 0.2)",
-              border: "none",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
               color: "#38bdf8",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
+              flexShrink: 0,
               transition: "transform 0.15s ease",
             }}
             onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.9)")}
@@ -161,25 +172,26 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
           >
             <Volume2 style={{ width: "16px", height: "16px" }} />
           </button>
-        </div>
 
-        <button
-          onClick={onClose}
-          style={{
-            borderRadius: "50%",
-            width: "28px",
-            height: "28px",
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            border: "none",
-            color: "#94a3b8",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <X style={{ width: "16px", height: "16px" }} />
-        </button>
+          <button
+            onClick={onClose}
+            style={{
+              borderRadius: "50%",
+              width: "32px",
+              height: "32px",
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              border: "none",
+              color: "#94a3b8",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <X style={{ width: "16px", height: "16px" }} />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
