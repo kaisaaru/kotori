@@ -198,7 +198,7 @@ export default function ReaderPage() {
   const [chapterNotice, setChapterNotice] = useState<string | null>(null);
   const [isFading, setIsFading] = useState(false);
   const isTransitioningRef = useRef(false);
-  const noticeTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const noticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const triggerChapterNotice = useCallback((text: string) => {
     setChapterNotice(text);
@@ -346,7 +346,7 @@ export default function ReaderPage() {
 
     // Toggle toolbar only on intentional tap/click in empty reading area
     if (!isSettingsOpen && !isTocOpen) {
-      setShowToolbar((prev) => !prev);
+      setShowToolbar(!showToolbar);
     }
   };
 
