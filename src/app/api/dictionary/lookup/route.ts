@@ -279,10 +279,11 @@ async function buildServerIndexInBackground() {
 
     // Save persistent disk cache for instant loading on future refreshes
     try {
-      const cacheDir = path.dirname(CACHE_FILE);
+      const targetCacheFile = CACHE_FILES[0];
+      const cacheDir = path.dirname(targetCacheFile);
       if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
       fs.writeFileSync(
-        CACHE_FILE,
+        targetCacheFile,
         JSON.stringify({
           terms: Array.from(termMap.entries()),
           kanji: Array.from(kanjiMap.entries()),
