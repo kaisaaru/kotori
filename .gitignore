@@ -4,3 +4,4 @@ out/
 *.tsbuildinfo
 .env*.local
 reference/kotoba-rumus/*素材*.zip
+dict-cache-v1.json

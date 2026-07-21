@@ -132,7 +132,11 @@ function initCoreFallbacks() {
   }
 }
 
-const CACHE_FILE = path.join(process.cwd(), ".next", "dict-cache-v1.json");
+const CACHE_FILES = [
+  path.join(process.cwd(), "src", "data", "dict-cache-v1.json"),
+  path.join(process.cwd(), "public", "dict-cache-v1.json"),
+  path.join(process.cwd(), ".next", "dict-cache-v1.json"),
+];
 
 async function buildServerIndexInBackground() {
   if (isIndexReady || isIndexBuilding) return;
@@ -140,18 +144,20 @@ async function buildServerIndexInBackground() {
 
   // Try loading pre-built disk cache (< 10ms instant load on refresh)
   try {
-    if (fs.existsSync(CACHE_FILE)) {
-      const cachedData = JSON.parse(fs.readFileSync(CACHE_FILE, "utf-8"));
-      if (cachedData.terms && cachedData.terms.length > 0) {
-        for (const [k, v] of cachedData.terms) {
-          termMap.set(k, v);
+    for (const cacheFile of CACHE_FILES) {
+      if (fs.existsSync(cacheFile)) {
+        const cachedData = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
+        if (cachedData.terms && cachedData.terms.length > 0) {
+          for (const [k, v] of cachedData.terms) {
+            termMap.set(k, v);
+          }
+          for (const [k, v] of cachedData.kanji) {
+            kanjiMap.set(k, v);
+          }
+          isIndexReady = true;
+          isIndexBuilding = false;
+          return;
         }
-        for (const [k, v] of cachedData.kanji) {
-          kanjiMap.set(k, v);
-        }
-        isIndexReady = true;
-        isIndexBuilding = false;
-        return;
       }
     }
   } catch (err) {
@@ -177,93 +183,99 @@ async function buildServerIndexInBackground() {
       return lower.endsWith(".zip") && !lower.includes("素材辞典");
     });
 
-    for (const filename of files) {
-      try {
-        const filePath = path.join(refDir, filename);
-        const buffer = fs.readFileSync(filePath);
-        const zip = new JSZip();
-        const contents = await zip.loadAsync(buffer);
+    await Promise.all(
+      files.map(async (filename) => {
+        try {
+          const filePath = path.join(refDir, filename);
+          const buffer = fs.readFileSync(filePath);
+          const zip = new JSZip();
+          const contents = await zip.loadAsync(buffer);
 
-        let dictTitle = filename.replace(/\.zip$/i, "");
-        const indexFile = contents.file("index.json");
-        if (indexFile) {
-          try {
-            const indexText = await indexFile.async("string");
-            const indexJson = JSON.parse(indexText);
-            if (indexJson.title) dictTitle = indexJson.title;
-          } catch {}
-        }
-
-        const termFiles = Object.keys(contents.files).filter((name) =>
-          /term_bank_\d+\.json$/i.test(name) || /term_meta_bank_\d+\.json$/i.test(name)
-        );
-
-        for (const tf of termFiles) {
-          const fileObj = contents.file(tf);
-          if (!fileObj) continue;
-          const text = await fileObj.async("string");
-          const entries = JSON.parse(text);
-
-          for (const entry of entries) {
-            if (Array.isArray(entry) && entry.length >= 6) {
-              const expression = String(entry[0] || "");
-              const reading = String(entry[1] || "");
-              const rawMeanings = entry[5];
-
-              let meanings: string[] = [];
-              if (Array.isArray(rawMeanings)) {
-                meanings = rawMeanings.map(cleanMeaningString).filter(Boolean);
-              } else if (rawMeanings) {
-                const cleaned = cleanMeaningString(rawMeanings);
-                if (cleaned) meanings = [cleaned];
-              }
-
-              if (expression && meanings.length > 0) {
-                const termObj: ServerTerm = {
-                  dictName: dictTitle,
-                  expression,
-                  reading: reading || expression,
-                  meanings,
-                  tags: typeof entry[2] === "string" ? [entry[2]] : [],
-                };
-
-                const existing = termMap.get(expression) || [];
-                existing.push(termObj);
-                termMap.set(expression, existing);
-              }
-            }
+          let dictTitle = filename.replace(/\.zip$/i, "");
+          const indexFile = contents.file("index.json");
+          if (indexFile) {
+            try {
+              const indexText = await indexFile.async("string");
+              const indexJson = JSON.parse(indexText);
+              if (indexJson.title) dictTitle = indexJson.title;
+            } catch {}
           }
-        }
 
-        const kanjiFiles = Object.keys(contents.files).filter((name) =>
-          /kanji_bank_\d+\.json$/i.test(name)
-        );
+          const termFiles = Object.keys(contents.files).filter((name) =>
+            /term_bank_\d+\.json$/i.test(name) || /term_meta_bank_\d+\.json$/i.test(name)
+          );
 
-        for (const kf of kanjiFiles) {
-          const fileObj = contents.file(kf);
-          if (!fileObj) continue;
-          const text = await fileObj.async("string");
-          const entries = JSON.parse(text);
+          await Promise.all(
+            termFiles.map(async (tf) => {
+              const fileObj = contents.file(tf);
+              if (!fileObj) return;
+              const text = await fileObj.async("string");
+              const entries = JSON.parse(text);
 
-          for (const entry of entries) {
-            if (Array.isArray(entry) && entry.length >= 5) {
-              const kanji = String(entry[0] || "");
-              const onyomi = typeof entry[1] === "string" ? entry[1].split(/\s+/) : [];
-              const kunyomi = typeof entry[2] === "string" ? entry[2].split(/\s+/) : [];
-              const meanings = Array.isArray(entry[4])
-                ? entry[4].map(cleanMeaningString).filter(Boolean)
-                : [cleanMeaningString(entry[4])].filter(Boolean);
+              for (const entry of entries) {
+                if (Array.isArray(entry) && entry.length >= 6) {
+                  const expression = String(entry[0] || "");
+                  const reading = String(entry[1] || "");
+                  const rawMeanings = entry[5];
 
-              if (kanji) {
-                kanjiMap.set(kanji, { kanji, onyomi, kunyomi, meanings });
+                  let meanings: string[] = [];
+                  if (Array.isArray(rawMeanings)) {
+                    meanings = rawMeanings.map(cleanMeaningString).filter(Boolean);
+                  } else if (rawMeanings) {
+                    const cleaned = cleanMeaningString(rawMeanings);
+                    if (cleaned) meanings = [cleaned];
+                  }
+
+                  if (expression && meanings.length > 0) {
+                    const termObj: ServerTerm = {
+                      dictName: dictTitle,
+                      expression,
+                      reading: reading || expression,
+                      meanings,
+                      tags: typeof entry[2] === "string" ? [entry[2]] : [],
+                    };
+
+                    const existing = termMap.get(expression) || [];
+                    existing.push(termObj);
+                    termMap.set(expression, existing);
+                  }
+                }
               }
-            }
-          }
+            })
+          );
+
+          const kanjiFiles = Object.keys(contents.files).filter((name) =>
+            /kanji_bank_\d+\.json$/i.test(name)
+          );
+
+          await Promise.all(
+            kanjiFiles.map(async (kf) => {
+              const fileObj = contents.file(kf);
+              if (!fileObj) return;
+              const text = await fileObj.async("string");
+              const entries = JSON.parse(text);
+
+              for (const entry of entries) {
+                if (Array.isArray(entry) && entry.length >= 5) {
+                  const kanji = String(entry[0] || "");
+                  const onyomi = typeof entry[1] === "string" ? entry[1].split(/\s+/) : [];
+                  const kunyomi = typeof entry[2] === "string" ? entry[2].split(/\s+/) : [];
+                  const meanings = Array.isArray(entry[4])
+                    ? entry[4].map(cleanMeaningString).filter(Boolean)
+                    : [cleanMeaningString(entry[4])].filter(Boolean);
+
+                  if (kanji) {
+                    kanjiMap.set(kanji, { kanji, onyomi, kunyomi, meanings });
+                  }
+                }
+              }
+            })
+          );
+        } catch (err) {
+          console.warn(`Error indexing server dictionary ${filename}:`, err);
         }
-      } catch (err) {
-        console.warn(`Error indexing server dictionary ${filename}:`, err);
-      }
-    }
+      })
+    );
 
     // Save persistent disk cache for instant loading on future refreshes
     try {
