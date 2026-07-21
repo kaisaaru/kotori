@@ -55,6 +55,7 @@ async function buildCache() {
       { dictName: "Jitendex (English)", expression: "美", reading: "び", meanings: ["beauty"] }
     ],
     はぁ: [{ dictName: "JIDict (Indonesian)", expression: "はぁ", reading: "はぁ", meanings: ["Haa... (desah/helan napas, seruan terkejut/bingung)"], jlpt: "N5" }],
+    の: [{ dictName: "JIDict (Indonesian)", expression: "の", reading: "の", meanings: ["Partikel kepemilikan (milik / -nya)", "Penghubung kata benda", "Nominalizer (pengubah kata kerja/sifat jadi kata benda)"], jlpt: "N5" }],
     はあ: [{ dictName: "JIDict (Indonesian)", expression: "はあ", reading: "はあ", meanings: ["Haa... (desah/helan napas, ya/tentu)"], jlpt: "N5" }],
     ふぅ: [{ dictName: "JIDict (Indonesian)", expression: "ふぅ", reading: "ふぅ", meanings: ["Fuu... (helan napas lega/lelah)"] }],
     へぇ: [{ dictName: "JIDict (Indonesian)", expression: "へぇ", reading: "へぇ", meanings: ["Hee... (seruan kagum/heran/terkejut)"] }],
@@ -181,14 +182,59 @@ async function buildCache() {
         for (const entry of entries) {
           if (Array.isArray(entry) && entry.length >= 5) {
             const kanji = String(entry[0] || "");
-            const onyomi = typeof entry[1] === "string" ? entry[1].split(/\s+/) : [];
-            const kunyomi = typeof entry[2] === "string" ? entry[2].split(/\s+/) : [];
+            const onyomi = typeof entry[1] === "string" ? entry[1].split(/\s+/).filter(Boolean) : [];
+            const kunyomi = typeof entry[2] === "string" ? entry[2].split(/\s+/).filter(Boolean) : [];
+            const tagStr = typeof entry[3] === "string" ? entry[3] : JSON.stringify(entry[3] || "");
+            const statsObj = entry[5] ? JSON.stringify(entry[5]) : "";
             const meanings = Array.isArray(entry[4])
               ? entry[4].map(cleanMeaningString).filter(Boolean)
               : [cleanMeaningString(entry[4])].filter(Boolean);
 
+            let jlpt = undefined;
+            const fullMeta = `${tagStr} ${statsObj}`;
+            const m = fullMeta.match(/JLPT\s*N?([1-5])/i) || fullMeta.match(/\bN([1-5])\b/i);
+            if (m) {
+              jlpt = `N${m[1]}`;
+            }
+
             if (kanji) {
-              kanjiMap.set(kanji, { kanji, onyomi, kunyomi, meanings });
+              const existing = kanjiMap.get(kanji);
+              kanjiMap.set(kanji, {
+                kanji,
+                onyomi: onyomi.length > 0 ? onyomi : existing?.onyomi || [],
+                kunyomi: kunyomi.length > 0 ? kunyomi : existing?.kunyomi || [],
+                meanings: meanings.length > 0 ? meanings : existing?.meanings || [],
+                jlpt: jlpt || existing?.jlpt,
+              });
+            }
+          }
+        }
+      }
+
+      const kanjiMetaFiles = Object.keys(contents.files).filter((name) =>
+        /kanji_meta_bank_\d+\.json$/i.test(name)
+      );
+
+      for (const kmf of kanjiMetaFiles) {
+        const fileObj = contents.file(kmf);
+        if (!fileObj) continue;
+        const text = await fileObj.async("string");
+        const entries = JSON.parse(text);
+
+        for (const entry of entries) {
+          if (Array.isArray(entry) && entry.length >= 3) {
+            const kanji = String(entry[0] || "");
+            const mode = String(entry[1] || "");
+            const data = entry[2];
+
+            if (kanji && (mode === "jlpt" || mode === "freq" || mode === "stats")) {
+              const dataStr = typeof data === "string" ? data : JSON.stringify(data);
+              const m = dataStr.match(/N?([1-5])/i);
+              if (m) {
+                const jlptVal = `N${m[1]}`;
+                const existing = kanjiMap.get(kanji) || { kanji, onyomi: [], kunyomi: [], meanings: [] };
+                kanjiMap.set(kanji, { ...existing, jlpt: jlptVal });
+              }
             }
           }
         }
