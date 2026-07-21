@@ -491,6 +491,82 @@ export default function ReaderSettingsPanel({
             </div>
           </SettingSection>
 
+          {/* Toggle Dictionary On/Off */}
+          <SettingSection label="Fitur Kamus / Dictionary Popup">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                backgroundColor: "var(--kb-bg-secondary)",
+                border: "1px solid var(--kb-border-subtle)",
+                opacity: dictStatus?.isReady ? 1 : 0.65,
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>
+                  Aktifkan Pop-up Kamus
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "2px" }}>
+                  {dictStatus?.isReady
+                    ? "Tampilkan kamus otomatis saat menyorot kata pada buku"
+                    : dictStatus?.isBuilding
+                    ? "Kamus sedang disiapkan... (Mohon tunggu)"
+                    : "Kamus bawaan belum aktif"}
+                </div>
+              </div>
+
+              {/* Toggle Switch Button */}
+              <button
+                disabled={!dictStatus?.isReady}
+                onClick={() => {
+                  if (dictStatus?.isReady) {
+                    onSettingsChange({ enableDictionary: !(settings.enableDictionary ?? true) });
+                  }
+                }}
+                title={
+                  !dictStatus?.isReady
+                    ? "Kamus bawaan belum aktif"
+                    : (settings.enableDictionary ?? true)
+                    ? "Matikan Kamus"
+                    : "Hidupkan Kamus"
+                }
+                style={{
+                  width: "48px",
+                  height: "26px",
+                  borderRadius: "13px",
+                  backgroundColor:
+                    dictStatus?.isReady && (settings.enableDictionary ?? true)
+                      ? "var(--kb-primary)"
+                      : "var(--kb-border)",
+                  position: "relative",
+                  cursor: dictStatus?.isReady ? "pointer" : "not-allowed",
+                  border: "none",
+                  transition: "all 0.2s ease",
+                  flexShrink: 0,
+                  opacity: dictStatus?.isReady ? 1 : 0.5,
+                }}
+              >
+                <div
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    backgroundColor: "#ffffff",
+                    position: "absolute",
+                    top: "3px",
+                    left: dictStatus?.isReady && (settings.enableDictionary ?? true) ? "25px" : "3px",
+                    transition: "left 0.2s ease",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </button>
+            </div>
+          </SettingSection>
+
           {/* Yomitan Dictionary Manager Section */}
           <SettingSection label="Kelola Kamus Kustom / Custom Dictionaries">
             <div

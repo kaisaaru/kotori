@@ -20,6 +20,7 @@ interface ServerKanji {
   onyomi: string[];
   kunyomi: string[];
   meanings: string[];
+  jlpt?: string;
 }
 
 let isIndexBuilding = false;
@@ -457,6 +458,9 @@ const CORE_FALLBACKS: Record<string, ServerTerm[]> = {
     { dictName: "JIDict (Indonesian)", expression: "はぁ", reading: "はぁ", meanings: ["Haa... (desah/helan napas, seruan terkejut/bingung)"], jlpt: "N5" },
     { dictName: "Jitendex (English)", expression: "はぁ", reading: "haa", meanings: ["sigh, gasp, expression of surprise or exasperation"] },
   ],
+  の: [
+    { dictName: "JIDict (Indonesian)", expression: "の", reading: "の", meanings: ["Partikel kepemilikan (milik / -nya; misal: 私の = milik saya)", "Penghubung kata benda (misal: 日本の車 = mobil Jepang)", "Nominalizer / Pengubah kata kerja & sifat menjadi kata benda"], jlpt: "N5" },
+  ],
   はあ: [
     { dictName: "JIDict (Indonesian)", expression: "はあ", reading: "はあ", meanings: ["Haa... (desah/helan napas, ya/tentu)"], jlpt: "N5" },
   ],
@@ -821,10 +825,110 @@ export async function GET(request: Request) {
     }
   }
 
+const KANJI_JLPT_MAP: Record<string, string> = {
+  // N5 Kanji
+  "一":"N5","二":"N5","三":"N5","四":"N5","五":"N5","六":"N5","七":"N5","八":"N5","九":"N5","十":"N5",
+  "百":"N5","千":"N5","万":"N5","円":"N5","校":"N5","名前":"N5","前":"N5","後":"N5","左":"N5","右":"N5",
+  "大":"N5","小":"N5","中":"N5","月":"N5","日":"N5","年":"N5","火":"N5","水":"N5","木":"N5","金":"N5",
+  "土":"N5","山":"N5","川":"N5","田":"N5","人":"N5","口":"N5","車":"N5","門":"N5","学":"N5","生":"N5",
+  "先":"N5","私":"N5","本":"N5","天":"N5","気":"N5","雨":"N5","電":"N5","花":"N5","魚":"N5","耳":"N5",
+  "手":"N5","足":"N5","目":"N5","力":"N5","男":"N5","女":"N5","子":"N5","父":"N5","母":"N5","友":"N5",
+  "毎":"N5","何":"N5","国":"N5","道":"N5","駅":"N5","社":"N5","店":"N5","東":"N5","西":"N5",
+  "南":"N5","北":"N5","上":"N5","下":"N5","分":"N5","時":"N5","半":"N5","間":"N5","午":"N5","今":"N5",
+  "朝":"N5","昼":"N5","夜":"N5","長":"N5","高":"N5","安":"N5","新":"N5",
+  "古":"N5","多":"N5","少":"N5","早":"N5","白":"N5","赤":"N5","青":"N5","黒":"N5","見":"N5","聞":"N5",
+  "書":"N5","読":"N5","話":"N5","買":"N5","行":"N5","来":"N5","出":"N5","入":"N5","立":"N5","休":"N5",
+  "食":"N5","飲":"N5","会":"N5","言":"N5","語":"N5","教":"N5","勉":"N5","強":"N5",
+  // N4 Kanji
+  "不":"N4","世":"N4","主":"N4","乗":"N4","事":"N4","仕":"N4","代":"N4","以":"N4","体":"N4","作":"N4",
+  "使":"N4","借":"N4","元":"N4","兄":"N4","光":"N4","写":"N4","切":"N4","別":"N4","利":"N4","動":"N4",
+  "同":"N4","味":"N4","品":"N4","員":"N4","問":"N4","善":"N4","図":"N4","地":"N4","堂":"N4","場":"N4",
+  "売":"N4","変":"N4","夏":"N4","夕":"N4","太":"N4","妹":"N4","姉":"N4","始":"N4","字":"N4","家":"N4",
+  "宿":"N4","寒":"N4","屋":"N4","工":"N4","市":"N4","帰":"N4","広":"N4","度":"N4","建":"N4","弟":"N4",
+  "心":"N4","思":"N4","意":"N4","持":"N4","文":"N4","料":"N4","方":"N4","旅":"N4",
+  "族":"N4","明":"N4","春":"N4","映":"N4","服":"N4","業":"N4","楽":"N4","止":"N4",
+  "歩":"N4","死":"N4","注":"N4","洗":"N4","洋":"N4","海":"N4","漢":"N4","牛":"N4","物":"N4","特":"N4",
+  "犬":"N4","理":"N4","用":"N4","画":"N4","病":"N4","真":"N4","着":"N4","知":"N4","研":"N4","究":"N4",
+  "秋":"N4","答":"N4","紙":"N4","終":"N4","考":"N4","者":"N4","肉":"N4","自":"N4",
+  "致":"N4","色":"N4","英":"N4","茶":"N4","親":"N4","計":"N4","試":"N4","説":"N4","貸":"N4",
+  "質":"N4","走":"N4","起":"N4","転":"N4","近":"N4","送":"N4","通":"N4","速":"N4",
+  "遅":"N4","重":"N4","野":"N4","開":"N4","院":"N4","集":"N4",
+  "音":"N4","風":"N4","首":"N4","館":"N4",
+  // N3 Kanji
+  "進":"N3","政":"N3","議":"N3","連":"N3","対":"N3","部":"N3","相":"N3","定":"N3","実":"N3",
+  "決":"N3","全":"N3","表":"N3","戦":"N3","経":"N3","最":"N3","現":"N3","調":"N3","化":"N3","当":"N3",
+  "約":"N3","法":"N3","性":"N3","要":"N3","制":"N3","治":"N3","務":"N3","成":"N3","期":"N3",
+  "取":"N3","都":"N3","和":"N3","機":"N3","平":"N3","加":"N3","受":"N3","続":"N3","数":"N3",
+  "記":"N3","初":"N3","指":"N3","権":"N3","支":"N3","産":"N3","点":"N3","報":"N3","済":"N3","活":"N3",
+  "原":"N3","共":"N3","得":"N3","解":"N3","交":"N3","資":"N3","予":"N3","向":"N3","際":"N3","勝":"N3",
+  "面":"N3","告":"N3","反":"N3","判":"N3","認":"N3","参":"N3","組":"N3","信":"N3","在":"N3",
+  "件":"N3","側":"N3","任":"N3","引":"N3","求":"N3","所":"N3","次":"N3","情":"N3","投":"N3","示":"N3",
+  "打":"N3","直":"N3","両":"N3","式":"N3","確":"N3","果":"N3","容":"N3","必":"N3","演":"N3",
+  "歳":"N3","争":"N3","談":"N3","能":"N3","位":"N3","置":"N3","流":"N3","格":"N3","疑":"N3","過":"N3",
+  "局":"N3","放":"N3","常":"N3","状":"N3","球":"N3","職":"N3","与":"N3","供":"N3","役":"N3","構":"N3",
+  "割":"N3","身":"N3","費":"N3","由":"N3","難":"N3","優":"N3","夫":"N3","収":"N3",
+  "断":"N3","恥":"N3","焦":"N3","俺":"N3","僕":"N3","暑":"N3","波":"N3","帆":"N3","退":"N3",
+  // N2 Kanji
+  "瀬":"N2","猛":"N2","党":"N2","協":"N2","総":"N2","区":"N2","領":"N2","県":"N2","設":"N2","保":"N2","改":"N2","第":"N2",
+  "結":"N2","派":"N2","府":"N2","査":"N2","委":"N2","軍":"N2","案":"N2","基":"N2","島":"N2","提":"N2",
+  "企":"N2","検":"N2","藤":"N2","沢":"N2","裁":"N2","証":"N2","援":"N2","施":"N2",
+  "井":"N2","護":"N2","展":"N2","態":"N2","鮮":"N2","視":"N2","条":"N2","幹":"N2","独":"N2","宮":"N2",
+  "率":"N2","衛":"N2","張":"N2","監":"N2","審":"N2","義":"N2","訴":"N2","株":"N2","姿":"N2","閣":"N2",
+  "韓":"N2","徴":"N2","題":"N2","罰":"N2","責":"N2","就":"N2","創":"N2","造":"N2",
+  // N1 Kanji
+  "之":"N1","氏":"N1","民":"N1","関":"N1","論":"N1","術":"N1","築":"N1","憲":"N1","障":"N1"
+};
+
+const CORE_KANJI_DICT: Record<string, { onyomi: string[]; kunyomi: string[]; meanings: string[]; jlpt?: string }> = {
+  退: { onyomi: ["タイ"], kunyomi: ["しりぞ-く", "のぞ-く"], meanings: ["Mundur, berhenti, keluar dari sekolah/posisi, menyurut"], jlpt: "N3" },
+  学: { onyomi: ["ガク"], kunyomi: ["まな-ぶ"], meanings: ["Belajar, ilmu, sekolah, terpelajar"], jlpt: "N5" },
+  者: { onyomi: ["シャ"], kunyomi: ["もの"], meanings: ["Orang, individu, pihak, sosok"], jlpt: "N4" },
+  出: { onyomi: ["シュツ", "スイ"], kunyomi: ["で-る", "だ-す"], meanings: ["Keluar, mengeluarkan, muncul, terbit"], jlpt: "N5" },
+  弁: { onyomi: ["ベン"], kunyomi: ["わきま-える"], meanings: ["Penjelasan, pembelaan, pidato, dialek"], jlpt: "N2" },
+  明: { onyomi: ["メイ", "ミョウ"], kunyomi: ["あか-るい", "あき-らか"], meanings: ["Terang, jelas, mengerti, fajar"], jlpt: "N4" },
+  述: { onyomi: ["ジュツ"], kunyomi: ["のべ-る"], meanings: ["Menyatakan, mengemukakan, menceritakan"], jlpt: "N3" },
+  坂: { onyomi: ["ハン"], kunyomi: ["さか"], meanings: ["Lereng, bukit, tanjakan"], jlpt: "N3" },
+  柳: { onyomi: ["リュウ"], kunyomi: ["やなぎ"], meanings: ["Pohon dedalu (willow)"], jlpt: "N1" },
+  鬼: { onyomi: ["キ"], kunyomi: ["おに"], meanings: ["Iblis, oni, setan, raksasa"], jlpt: "N2" },
+  島: { onyomi: ["トウ"], kunyomi: ["しま"], meanings: ["Pulau"], jlpt: "N4" },
+  止: { onyomi: ["シ"], kunyomi: ["と-まる", "と-める"], meanings: ["Berhenti, menghentikan, mencegah"], jlpt: "N4" },
+  入: { onyomi: ["ニュウ"], kunyomi: ["はい-る", "い-れる"], meanings: ["Masuk, dimasukkan, dipenuhi"], jlpt: "N5" },
+  焦: { onyomi: ["ショウ"], kunyomi: ["あせ-る", "あせ-り"], meanings: ["Cemas, gelisah, terburu-buru, panik"], jlpt: "N3" },
+  進: { onyomi: ["シン"], kunyomi: ["すす-む", "すす-める"], meanings: ["Maju, melangkah maju, memajukan"], jlpt: "N3" },
+  前: { onyomi: ["ゼン"], kunyomi: ["まえ"], meanings: ["Depan, sebelum, terdahulu"], jlpt: "N5" },
+  今: { onyomi: ["コン", "キン"], kunyomi: ["いま"], meanings: ["Sekarang, saat ini"], jlpt: "N5" },
+  日: { onyomi: ["ニチ", "ジツ"], kunyomi: ["ひ", "か"], meanings: ["Hari, matahari"], jlpt: "N5" },
+  私: { onyomi: ["シ"], kunyomi: ["わたし", "わたくし"], meanings: ["Saya, aku, pribadi"], jlpt: "N5" },
+  俺: { onyomi: ["エン"], kunyomi: ["おれ"], meanings: ["Aku (laki-laki informal)"], jlpt: "N3" },
+  僕: { onyomi: ["ボク"], kunyomi: ["しもべ"], meanings: ["Aku (laki-laki)"], jlpt: "N5" },
+  人: { onyomi: ["ジン", "ニン"], kunyomi: ["ひと"], meanings: ["Orang, manusia"], jlpt: "N5" },
+  生: { onyomi: ["セイ", "ショウ"], kunyomi: ["い-きる", "う-まれる", "なま"], meanings: ["Hidup, lahir, mentah"], jlpt: "N5" },
+  美: { onyomi: ["ビ", "ミ"], kunyomi: ["うつく-しい"], meanings: ["Cantik, indah, keindahan"], jlpt: "N3" },
+  雪: { onyomi: ["セツ"], kunyomi: ["ゆき"], meanings: ["Salju"], jlpt: "N3" },
+  校: { onyomi: ["コウ"], kunyomi: [], meanings: ["Sekolah"], jlpt: "N5" },
+  年: { onyomi: ["ネン"], kunyomi: ["とし"], meanings: ["Tahun, usia"], jlpt: "N5" },
+  去: { onyomi: ["キョ", "コ"], kunyomi: ["さ-る"], meanings: ["Lalu, pergi, meninggalkan"], jlpt: "N4" },
+  暑: { onyomi: ["ショ"], kunyomi: ["あつ-い"], meanings: ["Panas (cuaca)"], jlpt: "N3" },
+  猛: { onyomi: ["モウ"], kunyomi: ["たけ-ぶ"], meanings: ["Sangat, sengit, ganas, keras"], jlpt: "N2" },
+};
+
   // Extract Kanji details
   const kanjiChars = Array.from(new Set(cleanQuery.match(/[\u4e00-\u9faf]/g) || []));
   for (const char of kanjiChars) {
     let kObj = kanjiMap.get(char);
+    const jlptLevel = KANJI_JLPT_MAP[char] || kObj?.jlpt;
+
+    if (!kObj && CORE_KANJI_DICT[char]) {
+      const core = CORE_KANJI_DICT[char];
+      kObj = {
+        kanji: char,
+        onyomi: core.onyomi,
+        kunyomi: core.kunyomi,
+        meanings: core.meanings,
+        jlpt: core.jlpt || jlptLevel,
+      };
+    }
+
     if (!kObj && termMap.has(char)) {
       const terms = termMap.get(char)!;
       const readings = Array.from(new Set(terms.map((t) => t.reading).filter(Boolean)));
@@ -843,7 +947,10 @@ export async function GET(request: Request) {
         onyomi,
         kunyomi: kunyomi.length > 0 ? kunyomi : readings,
         meanings: meanings.length > 0 ? meanings : ["Karakter Kanji"],
+        jlpt: jlptLevel,
       };
+    } else if (kObj) {
+      kObj = { ...kObj, jlpt: jlptLevel || kObj.jlpt };
     }
 
     if (kObj) {
@@ -854,6 +961,7 @@ export async function GET(request: Request) {
         onyomi: [],
         kunyomi: [],
         meanings: ["Karakter Kanji"],
+        jlpt: jlptLevel,
       });
     }
   }

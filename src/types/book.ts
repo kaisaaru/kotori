@@ -36,6 +36,7 @@ export interface ReaderSettings {
   margin: "compact" | "normal" | "wide";
   readerWidth: "narrow" | "medium" | "wide" | "full";
   ttsSpeed: number;
+  enableDictionary?: boolean;
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
@@ -48,6 +49,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   margin: "normal",
   readerWidth: "medium",
   ttsSpeed: 0.8,
+  enableDictionary: true,
 };
 
 export const FONT_FAMILIES = [
