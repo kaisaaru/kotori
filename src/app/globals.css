@@ -236,14 +236,41 @@ body {
 .animate-scale-in { animation: scaleIn 0.2s ease-out; }
 .animate-spin { animation: spin 1s linear infinite; }
 
+/* Desktop Header Default */
+.kb-mobile-hamburger-btn {
+  display: none !important;
+}
+
+.kb-mobile-add-btn {
+  display: none !important;
+}
+
 /* ===== Mobile Responsive Rules ===== */
 @media (max-width: 768px) {
+  .kb-mobile-hamburger-btn {
+    display: flex !important;
+  }
+
+  .kb-mobile-add-btn {
+    display: flex !important;
+  }
+
+  .kb-desktop-controls {
+    display: none !important;
+  }
+
   .kb-header-inner {
-    padding: 12px 16px !important;
+    padding: 10px 16px !important;
     height: auto !important;
     min-height: 60px;
     flex-wrap: wrap;
-    gap: 10px !important;
+    align-items: center;
+    justifyContent: space-between !important;
+    gap: 8px !important;
+  }
+
+  .kb-logo-container {
+    margin: 0 auto !important;
   }
 
   .kb-logo-subtitle {
@@ -253,7 +280,7 @@ body {
   .kb-search-container {
     order: 3;
     width: 100% !important;
-    margin-top: 4px;
+    margin-top: 2px;
   }
 
   .kb-search-input {
