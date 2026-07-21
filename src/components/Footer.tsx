@@ -3,7 +3,46 @@
 import React from "react";
 import { BookOpen, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
-export function Footer() {
+const FOOTER_TRANSLATIONS = {
+  ID: {
+    description: "Platform membaca Light Novel & Web Novel Jepang otentik dengan Kamus Yomitan terintegrasi, pembedah kata otomatis, dan audio pelafalan TTS.",
+    highlightsTitle: "KEUNGGULAN PLATFORM",
+    privacyText: "Privasi 100% (Penyimpanan Lokal IndexedDB)",
+    verticalText: "Support Teks Vertikal (縦書き) & Audio TTS",
+    techTitle: "TEKNOLOGI",
+    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. Hak Cipta Dilindungi.`,
+    createdBy: "Dibuat oleh",
+    forLearners: "untuk Pembaca Light Novel & Pelajar Bahasa Jepang.",
+  },
+  EN: {
+    description: "Authentic Japanese Light Novel & Web Novel reading platform with integrated Yomitan Dictionary, auto text segmenter, and TTS audio pronunciation.",
+    highlightsTitle: "PLATFORM HIGHLIGHTS",
+    privacyText: "100% Privacy (IndexedDB Local Storage)",
+    verticalText: "Vertical Text (縦書き) & TTS Audio Support",
+    techTitle: "TECHNOLOGY",
+    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. All Rights Reserved.`,
+    createdBy: "Created by",
+    forLearners: "for Light Novel Readers & Japanese Learners.",
+  },
+  JP: {
+    description: "Yomitan辞書統合、自動形態素解析、TTS音声朗読を備えた本格派日本語ライトノベル＆ウェブ小説リーダー。",
+    highlightsTitle: "プラットフォームの特徴",
+    privacyText: "100% プライバシー保護（IndexedDBローカル保存）",
+    verticalText: "縦書き表示＆TTS音声朗読対応",
+    techTitle: "使用技術",
+    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. 全著作権所有。`,
+    createdBy: "作成者：",
+    forLearners: "ライトノベル読者＆日本語学習者のために。",
+  },
+};
+
+interface FooterProps {
+  language?: "ID" | "EN" | "JP";
+}
+
+export function Footer({ language = "ID" }: FooterProps) {
+  const t = FOOTER_TRANSLATIONS[language] || FOOTER_TRANSLATIONS.ID;
+
   return (
     <footer
       style={{
@@ -67,27 +106,23 @@ export function Footer() {
                 maxWidth: "340px",
               }}
             >
-              Platform membaca Light Novel & Web Novel Jepang otentik dengan Kamus Yomitan terintegrasi, pembedah kata otomatis, dan audio pelafalan TTS.
+              {t.description}
             </p>
           </div>
 
           {/* Core Feature Highlights */}
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--kb-text-secondary)" }}>
-              Keunggulan Platform
+              {t.highlightsTitle}
             </span>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px", color: "var(--kb-text-muted)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <ShieldCheck style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
-                <span>Privasi 100% (Penyimpanan Lokal IndexedDB)</span>
+                <span>{t.privacyText}</span>
               </div>
-              {/* <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Zap style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
-                <span>Mesin Kamus Super Cepat (&lt; 1ms)</span>
-              </div> */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Sparkles style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
-                <span>Support Teks Vertikal (縦書き) & Audio TTS</span>
+                <span>{t.verticalText}</span>
               </div>
             </div>
           </div>
@@ -95,7 +130,7 @@ export function Footer() {
           {/* Quick Info & Tech Stack */}
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--kb-text-secondary)" }}>
-              Teknologi
+              {t.techTitle}
             </span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {["Next.js 16", "React 19", "TypeScript", "Tailwind CSS v4", "Yomitan AST", "IndexedDB"].map((tech) => (
@@ -128,18 +163,18 @@ export function Footer() {
             flexWrap: "wrap",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "16px",
+            gap: "12px",
             fontSize: "12px",
             color: "var(--kb-text-muted)",
+            lineHeight: 1.6,
+            paddingBottom: "16px",
           }}
         >
-          <div>
-            © {new Date().getFullYear()} <strong>Kotoba Reader AI</strong>. Hak Cipta Dilindungi.
+          <div style={{ lineHeight: 1.6 }}>
+            {t.copyright}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <span>Dibuat oleh</span>
-            <strong style={{ color: "var(--kb-text)" }}>@Kai</strong>
-            <span>untuk Pembaca Light Novel & Pelajar Bahasa Jepang.</span>
+          <div style={{ lineHeight: 1.6 }}>
+            {t.createdBy} <strong style={{ color: "var(--kb-text)" }}>@Kai</strong> {t.forLearners}
           </div>
         </div>
       </div>
