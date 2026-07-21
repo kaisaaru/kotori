@@ -88,7 +88,13 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
   const handlePronounce = () => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
-      const textToSpeak = lookupData?.reading || selectedText;
+      let textToSpeak = lookupData?.reading || selectedText;
+
+      // Fix Web Speech API reading Hiragana 'は' as 'wa' in interjections (e.g. はぁ -> ハァ)
+      if (/^は[ぁあっー!？~…]*$/.test(textToSpeak) || /^は[ぁあっー!？~…]*$/.test(selectedText)) {
+        textToSpeak = textToSpeak.replace(/は/g, "ハ");
+      }
+
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
       utterance.lang = "ja-JP";
       utterance.rate = ttsRate;

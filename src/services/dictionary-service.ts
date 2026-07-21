@@ -65,6 +65,10 @@ class DictionaryService {
   // Ultra-lightweight 50-item LRU Cache in Client Memory
   private cache = new Map<string, LookupResult>();
 
+  clearMemoryCache() {
+    this.cache.clear();
+  }
+
   /**
    * Search dictionary via ultra-fast lightweight Server API
    */
