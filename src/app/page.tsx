@@ -24,6 +24,7 @@ import {
 } from "@/services/book-storage";
 import { formatFileSize, truncate } from "@/lib/utils";
 import type { BookMeta, ReadingProgress } from "@/types/book";
+import { Footer } from "@/components/Footer";
 
 export default function HomePage() {
   const router = useRouter();
@@ -556,6 +557,9 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

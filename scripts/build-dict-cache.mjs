@@ -44,6 +44,45 @@ async function buildCache() {
   const termMap = new Map();
   const kanjiMap = new Map();
 
+  // Seed core interjections and fallbacks
+  const CORE_FALLBACKS = {
+    美雪: [
+      { dictName: "JIDict (Indonesian)", expression: "美雪", reading: "みゆき", meanings: ["Miyuki (nama perempuan / salju indah)"], jlpt: "N5" },
+      { dictName: "Jitendex (English)", expression: "美雪", reading: "みゆき", meanings: ["Miyuki (female given name / beautiful snow)"] }
+    ],
+    美: [
+      { dictName: "JIDict (Indonesian)", expression: "美", reading: "み", meanings: ["Cantik; indah; agung"], jlpt: "N3" },
+      { dictName: "Jitendex (English)", expression: "美", reading: "び", meanings: ["beauty"] }
+    ],
+    はぁ: [{ dictName: "JIDict (Indonesian)", expression: "はぁ", reading: "はぁ", meanings: ["Haa... (desah/helan napas, seruan terkejut/bingung)"], jlpt: "N5" }],
+    はあ: [{ dictName: "JIDict (Indonesian)", expression: "はあ", reading: "はあ", meanings: ["Haa... (desah/helan napas, ya/tentu)"], jlpt: "N5" }],
+    ふぅ: [{ dictName: "JIDict (Indonesian)", expression: "ふぅ", reading: "ふぅ", meanings: ["Fuu... (helan napas lega/lelah)"] }],
+    へぇ: [{ dictName: "JIDict (Indonesian)", expression: "へぇ", reading: "へぇ", meanings: ["Hee... (seruan kagum/heran/terkejut)"] }],
+    そんな: [{ dictName: "JIDict (Indonesian)", expression: "そんな", reading: "そんな", meanings: ["Seperti itu, yang seperti itu"], jlpt: "N5" }],
+    お前: [{ dictName: "JIDict (Indonesian)", expression: "お前", reading: "おまえ", meanings: ["Kamu, kau (informal / agak kasar)", "Engkau"], jlpt: "N5" }],
+    私: [{ dictName: "JIDict (Indonesian)", expression: "私", reading: "わたし", meanings: ["Saya, aku"], jlpt: "N5" }],
+    俺: [{ dictName: "JIDict (Indonesian)", expression: "俺", reading: "おれ", meanings: ["Aku (laki-laki informal)"], jlpt: "N3" }],
+    僕: [{ dictName: "JIDict (Indonesian)", expression: "僕", reading: "ぼく", meanings: ["Aku (laki-laki)"], jlpt: "N5" }],
+  };
+
+  const CORE_KANJI_FALLBACKS = {
+    前: { kanji: "前", onyomi: ["ゼン"], kunyomi: ["まえ"], meanings: ["Depan, sebelum, terdahulu"] },
+    今: { kanji: "今", onyomi: ["コン", "キン"], kunyomi: ["いま"], meanings: ["Sekarang, saat ini"] },
+    日: { kanji: "日", onyomi: ["ニチ", "ジツ"], kunyomi: ["ひ", "か"], meanings: ["Hari, matahari"] },
+    私: { kanji: "私", onyomi: ["シ"], kunyomi: ["わたし", "わたくし"], meanings: ["Saya, aku, pribadi"] },
+    俺: { kanji: "俺", onyomi: ["エン"], kunyomi: ["おれ"], meanings: ["Aku (laki-laki informal)"] },
+    僕: { kanji: "僕", onyomi: ["ボク"], kunyomi: ["しもべ"], meanings: ["Aku (laki-laki)"] },
+    人: { kanji: "人", onyomi: ["ジン", "ニン"], kunyomi: ["ひと"], meanings: ["Orang, manusia"] },
+    生: { kanji: "生", onyomi: ["セイ", "ショウ"], kunyomi: ["い-きる", "う-まれる", "なま"], meanings: ["Hidup, lahir, mentah"] },
+  };
+
+  for (const [expr, terms] of Object.entries(CORE_FALLBACKS)) {
+    termMap.set(expr, terms);
+  }
+  for (const [k, obj] of Object.entries(CORE_KANJI_FALLBACKS)) {
+    kanjiMap.set(k, obj);
+  }
+
   let refDir = path.join(process.cwd(), "reference", "kotoba-rumus");
   if (!fs.existsSync(refDir)) {
     refDir = path.join(process.cwd(), "reference");
@@ -104,12 +143,18 @@ async function buildCache() {
             }
 
             if (expression && meanings.length > 0) {
+              const rawScore = typeof entry[4] === "number" ? entry[4] : 0;
+              const defTags = typeof entry[2] === "string" ? [entry[2]] : [];
+              const termTags = typeof entry[7] === "string" ? [entry[7]] : [];
+              const allTags = Array.from(new Set([...defTags, ...termTags].filter(Boolean)));
+
               const termObj = {
                 dictName: dictTitle,
                 expression,
                 reading: reading || expression,
                 meanings,
-                tags: typeof entry[2] === "string" ? [entry[2]] : [],
+                tags: allTags,
+                score: rawScore,
               };
 
               const existing = termMap.get(expression) || [];
@@ -148,6 +193,87 @@ async function buildCache() {
     } catch (err) {
       console.warn(`⚠️ Error indexing ${filename}:`, err);
     }
+  }
+
+  // Helper functions for scoring
+  function getDictPriority(dictName) {
+    if (!dictName) return 0;
+    const lower = dictName.toLowerCase();
+    if (lower.includes("jidict")) return 100;
+    if (lower.includes("jitendex")) return 90;
+    if (lower.includes("三省堂")) return 80;
+    if (lower.includes("jpdb")) return 70;
+    if (lower.includes("nhk")) return 60;
+    if (lower.includes("jlpt")) return 50;
+    if (lower.includes("やさしい")) return 10;
+    return 30;
+  }
+
+  const PRIMARY_READING_MAP = {
+    男: "おとこ",
+    女: "おんな",
+    人: "ひと",
+    言: "い",
+    行: "い",
+    見: "み",
+    食: "た",
+    書: "か",
+    読: "よ",
+    聞: "き",
+    思: "おも",
+    私: "わたし",
+    俺: "おれ",
+    僕: "ぼく",
+    日: "ひ",
+    水: "みず",
+    木: "き",
+    金: "かね",
+    土: "つち",
+    山: "やま",
+    川: "かわ",
+    空: "そら",
+    雨: "あめ",
+    手: "て",
+    目: "め",
+    口: "くち",
+    耳: "みみ",
+    足: "あし",
+    心: "こころ",
+  };
+
+  function calculateTermScore(term) {
+    let score = getDictPriority(term.dictName) * 1000;
+
+    if (PRIMARY_READING_MAP[term.expression]) {
+      const primary = PRIMARY_READING_MAP[term.expression];
+      if (term.reading === primary) {
+        score += 5000;
+      } else if (term.reading.length < primary.length) {
+        score -= 1000;
+      }
+    }
+    
+    if (typeof term.score === "number") {
+      score += term.score * 10;
+    }
+
+    const tagsStr = (term.tags || []).join(" ").toLowerCase();
+    if (tagsStr.includes("p") || tagsStr.includes("common") || tagsStr.includes("jlpt") || /n[1-5]/.test(tagsStr)) {
+      score += 500;
+    }
+
+    if (term.expression && term.expression.length === 1 && /[\u4e00-\u9faf]/.test(term.expression)) {
+      if (term.reading && term.reading.length >= 2) {
+        score += 200;
+      }
+    }
+
+    return score;
+  }
+
+  // Pre-sort all term arrays by score before saving
+  for (const [expr, terms] of termMap.entries()) {
+    terms.sort((a, b) => calculateTermScore(b) - calculateTermScore(a));
   }
 
   // Ensure public and src/data directories exist
