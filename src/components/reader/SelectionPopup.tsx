@@ -112,18 +112,19 @@ export function SelectionPopup({ selectedText, explicitFurigana, position, onClo
   const handlePronounce = () => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
-      // Prefer explicitFurigana if set from HTML <rt>, otherwise prefer selectedText (with Kanji) for natural Web Speech API parsing
-      let textToSpeak = explicitFurigana || selectedText || lookupData?.reading;
+      let textToSpeak = explicitFurigana || selectedText || lookupData?.reading || "";
 
       // Fix Web Speech API reading Hiragana 'は' as 'wa' in interjections (e.g. はぁ -> ハァ)
-      if (/^は[ぁあっー!？~…]*$/.test(textToSpeak)) {
+      if (textToSpeak && /^は[ぁあっー!？~…]*$/.test(textToSpeak)) {
         textToSpeak = textToSpeak.replace(/は/g, "ハ");
       }
 
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = "ja-JP";
-      utterance.rate = ttsRate;
-      window.speechSynthesis.speak(utterance);
+      if (textToSpeak) {
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = "ja-JP";
+        utterance.rate = ttsRate;
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
