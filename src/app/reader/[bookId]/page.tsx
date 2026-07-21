@@ -9,6 +9,7 @@ import {
   Settings,
   List,
   BookOpen,
+  X,
 } from "lucide-react";
 import { useReaderStore } from "@/stores/reader-store";
 import {
@@ -111,9 +112,48 @@ export default function ReaderPage() {
 
   // Detect highlighted/blocked text selection for dictionary popup & persistent bookmark
   useEffect(() => {
-    const handleMouseUp = () => {
+    const handleMouseUp = (e?: MouseEvent | TouchEvent) => {
+      // If user disabled Dictionary in Reader Settings, do not show dictionary popups!
+      if (settings.enableDictionary === false) {
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
+        return;
+      }
+
+      // Do NOT trigger new dictionary lookup if selection was made inside the dictionary popup!
+      const isNodeInPopup = (node: Node | null): boolean => {
+        let curr: Node | null = node;
+        while (curr) {
+          if (
+            curr instanceof HTMLElement &&
+            (curr.getAttribute("data-selection-popup") === "true" ||
+              curr.classList.contains("selection-popup") ||
+              Boolean(curr.closest?.(".selection-popup")))
+          ) {
+            return true;
+          }
+          curr = curr.parentNode;
+        }
+        return false;
+      };
+
+      if (isNodeInPopup(selection.anchorNode) || isNodeInPopup(selection.focusNode)) {
+        return;
+      }
+
+      if (e?.target && isNodeInPopup(e.target as Node)) {
+        return;
+      }
+
+      // Ensure selection is inside the reader content container
+      if (
+        contentRef.current &&
+        !contentRef.current.contains(selection.anchorNode) &&
+        !contentRef.current.contains(selection.focusNode)
+      ) {
         return;
       }
 
@@ -194,7 +234,7 @@ export default function ReaderPage() {
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleMouseUp);
     };
-  }, []);
+  }, [settings.enableDictionary]);
 
   // Load book data
   useEffect(() => {
@@ -757,7 +797,57 @@ export default function ReaderPage() {
                     pointerEvents: "auto",
                     cursor: "pointer",
                   }}
-                />
+                >
+                  {/* Small Close Button at Top Right Corner of Selection */}
+                  {idx === 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookmarkOverlay(null);
+                        setSelectionState(null);
+                        if (typeof window !== "undefined") {
+                          window.getSelection()?.removeAllRanges();
+                        }
+                      }}
+                      title="Batal seleksi"
+                      style={{
+                        position: "absolute",
+                        top: "-10px",
+                        right: "-10px",
+                        width: "20px",
+                        height: "20px",
+                        borderRadius: "50%",
+                        backgroundColor: "rgba(15, 23, 42, 0.85)",
+                        backdropFilter: "blur(8px)",
+                        WebkitBackdropFilter: "blur(8px)",
+                        color: "#94a3b8",
+                        border: "1px solid rgba(255, 255, 255, 0.25)",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        zIndex: 35,
+                        pointerEvents: "auto",
+                        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "scale(1.15)";
+                        e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.9)";
+                        e.currentTarget.style.color = "#ffffff";
+                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.backgroundColor = "rgba(15, 23, 42, 0.85)";
+                        e.currentTarget.style.color = "#94a3b8";
+                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+                      }}
+                    >
+                      <X style={{ width: "12px", height: "12px", strokeWidth: 2.5 }} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
