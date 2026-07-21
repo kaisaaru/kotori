@@ -98,9 +98,69 @@ const PRIMARY_READING_MAP: Record<string, string> = {
   読: "よ",       // 読 -> よ (stem for 読む, 読んでいる)
   聞: "き",       // 聞 -> き (stem for 聞く, 聞いている)
   思: "おも",     // 思 -> おも (stem for 思う, 思っている)
+  告: "つ",       // 告 -> つ (stem for 告げる, 告げずに)
+  出: "で",       // 出 -> で (stem for 出る, 出た, 出て)
+  起: "お",       // 起 -> お (stem for 起きる, 起きた)
+  家: "いえ",     // 家 -> いえ (house / home)
+  誰: "だれ",     // 誰 -> だれ (who)
+  飲: "の",       // 飲 -> の (stem for 飲む, 飲んで, 飲んだ)
+  外: "そと",     // 外 -> そと (outside)
+  暇: "ひま",     // 暇 -> ひま (free time)
+  恥: "はず",     // 恥 -> はず (stem for 恥ずかしい, 恥ずかしがる, 恥ずかしがって)
+  恥ずかしい: "はずかしい",
+  恥ずかしがって: "はずかしがって",
+  恥ずかしがる: "はずかしがる",
+  入: "はい",     // 入 -> はい (stem for 入る, 入って, 入っていた, 入っている, 入った)
+  入っていた: "はいっていた",
+  入っている: "はいっている",
+  入って: "はいって",
+  入る: "はいる",
+  気合が入っていた: "きあいがはいっていた",
+  気合が入る: "きあいがはいる",
+  気合: "きあい",
+  焦りもあって: "あせりもあって",
+  焦り: "あせり",
+  焦る: "あせる",
+  もあって: "もあって",
+  あって: "あって",
+  進: "すす",     // 進 -> すす (stem for 進む, 進める, 進めたい, 進め)
+  進めたい: "すすめたい",
+  進める: "すすめる",
+  進む: "すすむ",
+  進め: "すすめ",
+  たい: "たい",
+  付: "つき",     // 付 -> つき (stem for 付き合い, 付き合う, 付き合っている)
+  付き合い: "つきあい",
+  付き合う: "つきあう",
+  付き合って: "つきあって",
+  付き合っている: "つきあっている",
+  ろくに: "ろくに",
+  陸に: "ろくに",
+  できなかった: "できなかった",
+  なかった: "なかった",
+  できない: "できない",
+  できる: "できる",
+  できた: "できた",
+  はずだ: "はずだ",
+  はず: "はず",
+  事故: "じこ",
+  起きた: "おきた",
+  起きる: "おきる",
+  兄さん: "にいさん",
+  お兄さん: "おにいさん",
+  母さん: "かあさん",
+  お母さん: "おかあさん",
+  忙しい: "いそがしい",
   私: "わたし",
+  私が: "わたしが",
   俺: "おれ",
+  俺が: "おれが",
+  俺は: "おれは",
+  俺の: "おれの",
+  俺を: "おれを",
+  俺に: "おれに",
   僕: "ぼく",
+  僕が: "ぼくが",
   日: "ひ",
   水: "みず",
   木: "き",
@@ -155,6 +215,215 @@ function calculateTermScore(term: ServerTerm): number {
 
 // Core Fallback Dictionary Data
 const CORE_FALLBACKS: Record<string, ServerTerm[]> = {
+  俺が: [
+    { dictName: "JIDict (Indonesian)", expression: "俺が", reading: "おれが", meanings: ["Aku / saya (subjek - pronoun 俺 + partikel が)"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "俺が", reading: "おれ发", meanings: ["I (subject - pronoun 俺 + particle が)"], jlpt: "N3", tags: ["P"] },
+  ],
+  俺は: [
+    { dictName: "JIDict (Indonesian)", expression: "俺は", reading: "おれは", meanings: ["Aku / saya (topik - pronoun 俺 + partikel は)"], jlpt: "N3", tags: ["P"] },
+  ],
+  俺の: [
+    { dictName: "JIDict (Indonesian)", expression: "俺の", reading: "おれの", meanings: ["Milikku / aku punya (pronoun 俺 + partikel の)"], jlpt: "N3", tags: ["P"] },
+  ],
+  俺を: [
+    { dictName: "JIDict (Indonesian)", expression: "俺を", reading: "おれを", meanings: ["Aku (objek - pronoun 俺 + partikel を)"], jlpt: "N3", tags: ["P"] },
+  ],
+  俺に: [
+    { dictName: "JIDict (Indonesian)", expression: "俺に", reading: "おれに", meanings: ["Kepadaku / padaku (pronoun 俺 + partikel に)"], jlpt: "N3", tags: ["P"] },
+  ],
+  できなかった: [
+    { dictName: "JIDict (Indonesian)", expression: "できなかった", reading: "できなかった", meanings: ["Tidak bisa; tidak sanggup; tidak mampu (bentuk lampau negatif dari できる)"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "できなかった", reading: "できなかった", meanings: ["could not do; was unable to do (past negative of できる)"], jlpt: "N5", tags: ["P"] },
+  ],
+  なかった: [
+    { dictName: "JIDict (Indonesian)", expression: "なかった", reading: "なかった", meanings: ["Tidak ada; tidak (bentuk lampau negatif dari ない / ある)"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "なかった", reading: "なかった", meanings: ["was not; did not exist (past negative of ない)"], jlpt: "N5", tags: ["P"] },
+  ],
+  できない: [
+    { dictName: "JIDict (Indonesian)", expression: "できない", reading: "できない", meanings: ["Tidak bisa; tidak sanggup; tidak mampu"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "できない", reading: "できない", meanings: ["cannot do; unable to do"], jlpt: "N5", tags: ["P"] },
+  ],
+  できた: [
+    { dictName: "JIDict (Indonesian)", expression: "できた", reading: "できた", meanings: ["Bisa; sanggup; berhasil; selesai (bentuk lampau dari できる)"], jlpt: "N5", tags: ["P"] },
+  ],
+  できる: [
+    { dictName: "JIDict (Indonesian)", expression: "できる", reading: "できる", meanings: ["Bisa; sanggup; mampu; dapat"], jlpt: "N5", tags: ["P"] },
+  ],
+  はずだ: [
+    { dictName: "JIDict (Indonesian)", expression: "はずだ", reading: "はずだ", meanings: ["Seharusnya; semestinya; pasti (ekspresi keyakinan)"], jlpt: "N3", tags: ["P"] },
+  ],
+  はず: [
+    { dictName: "JIDict (Indonesian)", expression: "はず", reading: "はず", meanings: ["Seharusnya; semestinya; dugaan kuat"], jlpt: "N3", tags: ["P"] },
+  ],
+  ろくに: [
+    { dictName: "JIDict (Indonesian)", expression: "ろくに", reading: "ろくに", meanings: ["Dengan baik; dengan benar; dengan selayaknya; dengan memadai (biasa digunakan bersama kalimat negatif / ない / できない)", "Hampir tidak... (dengan baik/benar)"], jlpt: "N2", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "ろくに", reading: "ろくに", meanings: ["properly; well; satisfactorily; decently (with negative verb: hardly; barely)"], jlpt: "N2", tags: ["P"] },
+  ],
+  陸に: [
+    { dictName: "JIDict (Indonesian)", expression: "陸に", reading: "ろくに", meanings: ["Dengan baik; dengan benar; dengan selayaknya (biasa ditulis ろくに)"], jlpt: "N2", tags: ["P"] },
+  ],
+  付き合い: [
+    { dictName: "JIDict (Indonesian)", expression: "付き合い", reading: "つきあい", meanings: ["Pacaran; berpacaran; hubungan romantis; berkencan; hubungan kekasih", "Pergaulan; hubungan sosial; pertemanan; keakraban"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "付き合い", reading: "つきあい", meanings: ["dating; romantic relationship; going out", "association; social relations; friendship"], jlpt: "N3", tags: ["P"] },
+  ],
+  付き合う: [
+    { dictName: "JIDict (Indonesian)", expression: "付き合う", reading: "つきあう", meanings: ["Berpacaran; pacaran; berkencan; jadian (dengan seseorang)", "Bergaul; berteman; menemani"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "付き合う", reading: "つきあう", meanings: ["to date; to go out with; to be in a relationship", "to associate with; to keep company with"], jlpt: "N3", tags: ["P"] },
+  ],
+  付き合って: [
+    { dictName: "JIDict (Indonesian)", expression: "付き合って", reading: "つきあって", meanings: ["Berpacaran; pacaran; jadian; menemani (bentuk te dari 付き合う)"], jlpt: "N3", tags: ["P"] },
+  ],
+  付き合っている: [
+    { dictName: "JIDict (Indonesian)", expression: "付き合っている", reading: "つきあっている", meanings: ["Sedang berpacaran; pacaran; jadian; menjalin hubungan romantis"], jlpt: "N3", tags: ["P"] },
+  ],
+  進めたい: [
+    { dictName: "JIDict (Indonesian)", expression: "進めたい", reading: "すすめたい", meanings: ["Ingin memajukan; ingin melangkah maju; berkeinginan untuk meneruskan/mengembangkan (bentuk 〜たい dari 進める)"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "進めたい", reading: "すすめたい", meanings: ["want to advance; want to move forward; want to push ahead (tai-form of 進める)"], jlpt: "N3", tags: ["P"] },
+  ],
+  進める: [
+    { dictName: "JIDict (Indonesian)", expression: "進める", reading: "すすめる", meanings: ["Memajukan; menggerakkan ke depan; meneruskan; memajukan hubungan/rencana"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "進める", reading: "すすめる", meanings: ["to advance; to promote; to push forward; to speed up"], jlpt: "N3", tags: ["P"] },
+  ],
+  進む: [
+    { dictName: "JIDict (Indonesian)", expression: "進む", reading: "すすむ", meanings: ["Maju; melangkah maju; bergerak ke depan; berkembang"], jlpt: "N4", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "進む", reading: "すすむ", meanings: ["to advance; to go forward; to make progress"], jlpt: "N4", tags: ["P"] },
+  ],
+  進め: [
+    { dictName: "JIDict (Indonesian)", expression: "進め", reading: "すすめ", meanings: ["Maju; teruskan (bentuk perintah / stem dari 進める)"], jlpt: "N3", tags: ["P"] },
+  ],
+  たい: [
+    { dictName: "JIDict (Indonesian)", expression: "たい", reading: "たい", meanings: ["Ingin...; berkeinginan untuk... (akhiran pembentuk kata sifat keinginan dari bentuk-Masu verba)"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "たい", reading: "たい", meanings: ["want to (suffix indicating desire/wanting to do something)"], jlpt: "N5", tags: ["P"] },
+  ],
+  あって: [
+    { dictName: "JIDict (Indonesian)", expression: "あって", reading: "あって", meanings: ["Karena ada...; dikarenakan ada...; mengingat adanya... (Bentuk-te dari ある / 有る yang menyatakan alasan/sebab)", "Ada; berada; wujud (bentuk-te sambung dari ある)"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "あって", reading: "あって", meanings: ["because of; due to the presence of; having... (te-form of ある used as causal conjunction)", "being; existing (te-form of ある)"], jlpt: "N5", tags: ["P"] },
+  ],
+  もあって: [
+    { dictName: "JIDict (Indonesian)", expression: "もあって", reading: "もあって", meanings: ["Juga karena...; sebagian dikarenakan...; di samping alasan lain dikarenakan... (ekspresi gabungan partikel も + あって)"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "もあって", reading: "もあって", meanings: ["partly because of; partly due to; also because..."], jlpt: "N3", tags: ["P"] },
+  ],
+  焦りもあって: [
+    { dictName: "JIDict (Indonesian)", expression: "焦りもあって", reading: "あせりもあって", meanings: ["Juga karena adanya rasa cemas / terburu-buru; dikarenakan rasa cemas"], jlpt: "N3", tags: ["P"] },
+  ],
+  焦り: [
+    { dictName: "JIDict (Indonesian)", expression: "焦り", reading: "あせり", meanings: ["Kecemasan; kegelisahan; ketergesa-gesaan; rasa terburu-buru; rasa tidak sabar"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "焦り", reading: "あせり", meanings: ["impatience; anxiety; restlessness"], jlpt: "N3", tags: ["P"] },
+  ],
+  焦る: [
+    { dictName: "JIDict (Indonesian)", expression: "焦る", reading: "あせる", meanings: ["Merasa cemas; terburu-buru; gelisah; panik; hilang kesabaran"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "焦る", reading: "あせる", meanings: ["to be in a hurry; to be impatient; to feel anxious; to panic"], jlpt: "N3", tags: ["P"] },
+  ],
+  入っていた: [
+    { dictName: "JIDict (Indonesian)", expression: "入っていた", reading: "はいっていた", meanings: ["Telah masuk; berada di dalam; dipenuhi (bentuk lampau berkelanjutan 〜ていた dari 入る)", "(mis. 気合が入っていた) Sangat bersemangat; dipenuhi rasa antusiasme"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "入っていた", reading: "はいっていた", meanings: ["was inside; was contained in; was full of (past continuous of 入る)"], jlpt: "N5", tags: ["P"] },
+  ],
+  入っている: [
+    { dictName: "JIDict (Indonesian)", expression: "入っている", reading: "はいっている", meanings: ["Sedang berada di dalam; terkandung; dipenuhi (bentuk 〜ている dari 入る)"], jlpt: "N5", tags: ["P"] },
+  ],
+  入って: [
+    { dictName: "JIDict (Indonesian)", expression: "入って", reading: "はいって", meanings: ["Masuk; masuklah (bentuk te dari 入る)"], jlpt: "N5", tags: ["P"] },
+  ],
+  気合が入っていた: [
+    { dictName: "JIDict (Indonesian)", expression: "気合が入っていた", reading: "きあいがはいっていた", meanings: ["Sangat bersemangat; dipenuhi rasa antusiasme; tampil penuh totalitas & energi"], jlpt: "N3", tags: ["P"] },
+  ],
+  気合が入る: [
+    { dictName: "JIDict (Indonesian)", expression: "気合が入る", reading: "きあいがはいる", meanings: ["Penuh semangat; bersemangat tinggi; sangat antusias; siap totalitas"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "気合が入る", reading: "きあいがはいる", meanings: ["to be fired up; to be full of motivation/enthusiasm; to put one's heart into"], jlpt: "N3", tags: ["P"] },
+  ],
+  気合: [
+    { dictName: "JIDict (Indonesian)", expression: "気合", reading: "きあい", meanings: ["Semangat; dorongan energi; antusiasme; fokus mental; kecenderungan jiwa"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "気合", reading: "きあい", meanings: ["fighting spirit; motivation; enthusiasm; drive"], jlpt: "N3", tags: ["P"] },
+  ],
+  恥ずかしがって: [
+    { dictName: "JIDict (Indonesian)", expression: "恥ずかしがって", reading: "はずかしがって", meanings: ["Merasa malu; malu-malu; canggung (bentuk te dari 恥ずかしがる)"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "恥ずかしがって", reading: "はずかしがって", meanings: ["being shy; feeling embarrassed"], jlpt: "N3", tags: ["P"] },
+  ],
+  恥ずかしい: [
+    { dictName: "JIDict (Indonesian)", expression: "恥ずかしい", reading: "はずかしい", meanings: ["Malu; segan; canggung"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "恥ずかしい", reading: "はずかしい", meanings: ["embarrassed; shy; ashamed"], jlpt: "N5", tags: ["P"] },
+  ],
+  恥: [
+    { dictName: "JIDict (Indonesian)", expression: "恥", reading: "はじ", meanings: ["Rasa malu; aib; cacat nama"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "恥", reading: "はじ", meanings: ["shame; embarrassment; disgrace"], jlpt: "N3", tags: ["P"] },
+  ],
+  セミ: [
+    { dictName: "JIDict (Indonesian)", expression: "セミ", reading: "セミ", meanings: ["Tonggeret; jangkrik pohon; serangga cicada (蝉)"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "セミ", reading: "セミ", meanings: ["cicada (insect)"], jlpt: "N3", tags: ["P"] },
+  ],
+  蝉: [
+    { dictName: "JIDict (Indonesian)", expression: "蝉", reading: "セミ", meanings: ["Tonggeret; jangkrik pohon; serangga cicada"], jlpt: "N3", tags: ["P"] },
+  ],
+  外: [
+    { dictName: "JIDict (Indonesian)", expression: "外", reading: "そと", meanings: ["Luar; bagian luar; di luar rumah"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "外", reading: "そと", meanings: ["outside; exterior"], jlpt: "N5", tags: ["P"] },
+  ],
+  外に出る: [
+    { dictName: "JIDict (Indonesian)", expression: "外に出る", reading: "そとにでる", meanings: ["Pergi ke luar; keluar rumah"], jlpt: "N5", tags: ["P"] },
+  ],
+  暇: [
+    { dictName: "JIDict (Indonesian)", expression: "暇", reading: "ひま", meanings: ["Waktu luang; senggang; tidak sibuk"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "暇", reading: "ひま", meanings: ["free time; spare time; leisure"], jlpt: "N5", tags: ["P"] },
+  ],
+  事故: [
+    { dictName: "JIDict (Indonesian)", expression: "事故", reading: "じこ", meanings: ["Kecelakaan; insiden; musibah"], jlpt: "N3", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "事故", reading: "じこ", meanings: ["accident; incident; trouble"], jlpt: "N3", tags: ["P"] },
+  ],
+  起きた: [
+    { dictName: "JIDict (Indonesian)", expression: "起きた", reading: "おきた", meanings: ["Terjadi; bangun (bentuk ta dari 起きる)"], jlpt: "N5", tags: ["P"] },
+  ],
+  起きる: [
+    { dictName: "JIDict (Indonesian)", expression: "起きる", reading: "おきる", meanings: ["Bangun; terjadi; timbul"], jlpt: "N5", tags: ["P"] },
+  ],
+  飲んで: [
+    { dictName: "JIDict (Indonesian)", expression: "飲んで", reading: "のんで", meanings: ["Minum (bentuk te dari 飲む)"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "飲んで", reading: "のんで", meanings: ["drinking (te-form of 飲む)"], jlpt: "N5", tags: ["P"] },
+  ],
+  飲んだ: [
+    { dictName: "JIDict (Indonesian)", expression: "飲んだ", reading: "のんだ", meanings: ["Meminum (bentuk ta dari 飲む)"], jlpt: "N5", tags: ["P"] },
+  ],
+  飲む: [
+    { dictName: "JIDict (Indonesian)", expression: "飲む", reading: "のむ", meanings: ["Minum; menelan"], jlpt: "N5", tags: ["P"] },
+  ],
+  兄さん: [
+    { dictName: "JIDict (Indonesian)", expression: "兄さん", reading: "にいさん", meanings: ["Kakak laki-laki"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "兄さん", reading: "にいさん", meanings: ["older brother; elder brother"], jlpt: "N5", tags: ["P"] },
+  ],
+  お兄さん: [
+    { dictName: "JIDict (Indonesian)", expression: "お兄さん", reading: "おにいさん", meanings: ["Kakak laki-laki"], jlpt: "N5", tags: ["P"] },
+  ],
+  母さん: [
+    { dictName: "JIDict (Indonesian)", expression: "母さん", reading: "かあさん", meanings: ["Ibu; mama"], jlpt: "N5", tags: ["P"] },
+  ],
+  お母さん: [
+    { dictName: "JIDict (Indonesian)", expression: "お母さん", reading: "おかあさん", meanings: ["Ibu; mama"], jlpt: "N5", tags: ["P"] },
+  ],
+  忙しい: [
+    { dictName: "JIDict (Indonesian)", expression: "忙しい", reading: "いそがしい", meanings: ["Sibuk; banyak pekerjaan"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "忙しい", reading: "いそがしい", meanings: ["busy; occupied"], jlpt: "N5", tags: ["P"] },
+  ],
+  告げずに: [
+    { dictName: "JIDict (Indonesian)", expression: "告げずに", reading: "つげずに", meanings: ["Tanpa memberitahu/berkata"], jlpt: "N3", tags: ["P"] },
+  ],
+  告げず: [
+    { dictName: "JIDict (Indonesian)", expression: "告げず", reading: "つげず", meanings: ["Tanpa memberitahu"], jlpt: "N3", tags: ["P"] },
+  ],
+  告げる: [
+    { dictName: "JIDict (Indonesian)", expression: "告げる", reading: "つげる", meanings: ["Memberitahukan; menyampaikan; mengumumkan"], jlpt: "N3", tags: ["P"] },
+  ],
+  出た: [
+    { dictName: "JIDict (Indonesian)", expression: "出た", reading: "でた", meanings: ["Keluar; meninggalkan (bentuk lampau dari 出る)"], jlpt: "N5", tags: ["P"] },
+  ],
+  出る: [
+    { dictName: "JIDict (Indonesian)", expression: "出る", reading: "でる", meanings: ["Keluar; muncul"], jlpt: "N5", tags: ["P"] },
+  ],
+  家: [
+    { dictName: "JIDict (Indonesian)", expression: "家", reading: "いえ", meanings: ["Rumah; tempat tinggal"], jlpt: "N5", tags: ["P"] },
+    { dictName: "Jitendex (English)", expression: "家", reading: "いえ", meanings: ["house; home; dwelling"], jlpt: "N5", tags: ["P"] },
+  ],
+  誰にも: [
+    { dictName: "JIDict (Indonesian)", expression: "誰にも", reading: "だれにも", meanings: ["Kepada siapa pun (dengan kalimat negatif)"], jlpt: "N5", tags: ["P"] },
+  ],
   チャラ男: [
     { dictName: "JIDict (Indonesian)", expression: "チャラ男", reading: "チャラおとこ", meanings: ["Chara-otoko (pria gaul/flirty man)"], jlpt: "N3", tags: ["P"] },
     { dictName: "Jitendex (English)", expression: "チャラ男", reading: "チャラおとこ", meanings: ["playboy, shallow man who dresses flashily"], tags: ["P"] },
@@ -255,6 +524,18 @@ const CORE_KANJI_FALLBACKS: Record<string, ServerKanji> = {
   見: { kanji: "見", onyomi: ["ケン"], kunyomi: ["み-る"], meanings: ["Melihat, tampak", "See, look"] },
   言: { kanji: "言", onyomi: ["ゲン", "ゴン"], kunyomi: ["い-う", "こと"], meanings: ["Bicara, kata", "Say, word"] },
   心: { kanji: "心", onyomi: ["シン"], kunyomi: ["こころ"], meanings: ["Hati, pikiran, perasaan", "Heart, mind"] },
+  数: { kanji: "数", onyomi: ["スウ", "ス"], kunyomi: ["かず", "かぞ-える"], meanings: ["Angka, jumlah, hitungan", "Number, count"] },
+  年: { kanji: "年", onyomi: ["ネン"], kunyomi: ["とし"], meanings: ["Tahun, usia", "Year, age"] },
+  事: { kanji: "事", onyomi: ["ジ", "ズ"], kunyomi: ["こと"], meanings: ["Hal, perkara, kejadian", "Thing, matter, incident"] },
+  故: { kanji: "故", onyomi: ["コ"], kunyomi: ["ゆえ"], meanings: ["Alasan, sebab, almarhum", "Reason, cause, deceased"] },
+  起: { kanji: "起", onyomi: ["キ"], kunyomi: ["お-きる", "お-こる"], meanings: ["Bangun, terjadi", "Rouse, wake up, occur"] },
+  特: { kanji: "特", onyomi: ["トク"], kunyomi: [], meanings: ["Khusus, istimewa", "Special"] },
+  集: { kanji: "集", onyomi: ["シュウ"], kunyomi: ["あつ-まる", "あつ-める"], meanings: ["Kumpul, himpun", "Gather, collect"] },
+  報: { kanji: "報", onyomi: ["ホウ"], kunyomi: ["むく-いる"], meanings: ["Laporan, kabar, warta", "Report, news, reward"] },
+  道: { kanji: "道", onyomi: ["ドウ", "トウ"], kunyomi: ["みち"], meanings: ["Jalan, cara", "Road, way, path"] },
+  飲: { kanji: "飲", onyomi: ["イン"], kunyomi: ["の-む"], meanings: ["Minum", "Drink"] },
+  恥: { kanji: "恥", onyomi: ["チ"], kunyomi: ["はじ", "はず-かしい"], meanings: ["Malu, aib", "Shame, embarrassment"] },
+  付: { kanji: "付", onyomi: ["フ"], kunyomi: ["つ-ける", "つ-く"], meanings: ["Menempel, menyertai, pacaran, berhubungan", "Attach, adhere, date"] },
 };
 
 function initCoreFallbacks() {
@@ -481,11 +762,15 @@ export async function GET(request: Request) {
   const matchedTerms: ServerTerm[] = [];
   const matchedKanji: ServerKanji[] = [];
   const segmentedWords: any[] = [];
+  const termPositionMap = new Map<ServerTerm, number>();
 
   // Direct Match
   const direct = termMap.get(cleanQuery);
   if (direct && direct.length > 0) {
-    matchedTerms.push(...direct);
+    for (const d of direct) {
+      matchedTerms.push(d);
+      termPositionMap.set(d, 0);
+    }
   }
 
   // Word Segmentation
@@ -514,6 +799,7 @@ export async function GET(request: Request) {
         for (const m of subMatches) {
           if (!matchedTerms.some((t) => t.expression === m.expression && t.dictName === m.dictName)) {
             matchedTerms.push(m);
+            termPositionMap.set(m, cursor);
           }
         }
         cursor += len;
@@ -538,7 +824,28 @@ export async function GET(request: Request) {
   // Extract Kanji details
   const kanjiChars = Array.from(new Set(cleanQuery.match(/[\u4e00-\u9faf]/g) || []));
   for (const char of kanjiChars) {
-    const kObj = kanjiMap.get(char);
+    let kObj = kanjiMap.get(char);
+    if (!kObj && termMap.has(char)) {
+      const terms = termMap.get(char)!;
+      const readings = Array.from(new Set(terms.map((t) => t.reading).filter(Boolean)));
+      const meanings = Array.from(
+        new Set(
+          terms
+            .flatMap((t) => t.meanings || [])
+            .map((m) => cleanMeaningString(m))
+            .filter(Boolean)
+        )
+      );
+      const onyomi = readings.filter((r) => /^[\u30a0-\u30ff]+$/.test(r));
+      const kunyomi = readings.filter((r) => /^[\u3040-\u309f-]+$/.test(r));
+      kObj = {
+        kanji: char,
+        onyomi,
+        kunyomi: kunyomi.length > 0 ? kunyomi : readings,
+        meanings: meanings.length > 0 ? meanings : ["Karakter Kanji"],
+      };
+    }
+
     if (kObj) {
       matchedKanji.push(kObj);
     } else {
@@ -551,8 +858,17 @@ export async function GET(request: Request) {
     }
   }
 
-  // Sort matched terms using comprehensive scoring (dictionary priority + popularity tags)
-  matchedTerms.sort((a, b) => calculateTermScore(b) - calculateTermScore(a));
+  // Sort matched terms:
+  // 1. Primary: strictly sequentially by position of appearance in sentence (left-to-right from beginning to end)
+  // 2. Secondary: by dictionary priority score for entries at the exact same position
+  matchedTerms.sort((a, b) => {
+    const posA = termPositionMap.get(a) ?? 999;
+    const posB = termPositionMap.get(b) ?? 999;
+    if (posA !== posB) {
+      return posA - posB;
+    }
+    return calculateTermScore(b) - calculateTermScore(a);
+  });
 
   const exactTermMatch = matchedTerms.find((t) => t.expression === cleanQuery);
   const finalReading = (exactTermMatch && exactTermMatch.reading)

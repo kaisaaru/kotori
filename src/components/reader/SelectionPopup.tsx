@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Volume2, BookOpen, Layers, Type } from "lucide-react";
+import { X, Volume2, BookOpen, Layers, Type, Sparkles } from "lucide-react";
 import { dictionaryService, LookupResult } from "@/services/dictionary-service";
 import { useReaderStore } from "@/stores/reader-store";
 
 interface SelectionPopupProps {
   selectedText: string;
+  explicitFurigana?: string;
   position: { x: number; y: number };
   onClose: () => void;
 }
@@ -55,10 +56,12 @@ function formatMeaning(text: any): string {
   return text.trim();
 }
 
-export function SelectionPopup({ selectedText, position, onClose }: SelectionPopupProps) {
+export function SelectionPopup({ selectedText, explicitFurigana, position, onClose }: SelectionPopupProps) {
   const [activeTab, setActiveTab] = useState<"def" | "breakdown" | "kanji">("def");
   const [lookupData, setLookupData] = useState<LookupResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [translationText, setTranslationText] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +79,27 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
       }
     });
 
+    // Fetch Full Sentence Translation (Disabled for now until active Gemini API key is provided in .env.local)
+    /*
+    const clean = selectedText.trim();
+    if (clean) {
+      setIsTranslating(true);
+      fetch(`/api/translate?q=${encodeURIComponent(clean)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (isMounted && data.translation) {
+            setTranslationText(data.translation);
+          }
+        })
+        .catch((err) => {
+          console.warn("Translation route fetch error:", err);
+        })
+        .finally(() => {
+          if (isMounted) setIsTranslating(false);
+        });
+    }
+    */
+
     return () => {
       isMounted = false;
     };
@@ -88,17 +112,19 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
   const handlePronounce = () => {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
-      let textToSpeak = lookupData?.reading || selectedText;
+      let textToSpeak = explicitFurigana || selectedText || lookupData?.reading || "";
 
       // Fix Web Speech API reading Hiragana 'は' as 'wa' in interjections (e.g. はぁ -> ハァ)
-      if (/^は[ぁあっー!？~…]*$/.test(textToSpeak) || /^は[ぁあっー!？~…]*$/.test(selectedText)) {
+      if (textToSpeak && /^は[ぁあっー!？~…]*$/.test(textToSpeak)) {
         textToSpeak = textToSpeak.replace(/は/g, "ハ");
       }
 
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = "ja-JP";
-      utterance.rate = ttsRate;
-      window.speechSynthesis.speak(utterance);
+      if (textToSpeak) {
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = "ja-JP";
+        utterance.rate = ttsRate;
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
@@ -108,6 +134,8 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
   const popupWidth = Math.min(360, window.innerWidth - 32);
   const left = Math.min(Math.max(16, position.x - popupWidth / 2), window.innerWidth - popupWidth - 16);
   const top = Math.max(16, position.y - 190);
+
+  const displayReading = explicitFurigana || lookupData?.reading;
 
   return (
     <div
@@ -147,9 +175,9 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
           >
             {selectedText}
           </span>
-          {lookupData?.reading && lookupData.reading !== selectedText && (
+          {displayReading && displayReading !== selectedText && (
             <span style={{ fontSize: "12px", color: "#cbd5e1", wordBreak: "break-word" }}>
-              [{lookupData.reading}]
+              [{displayReading}]
             </span>
           )}
         </div>
@@ -199,6 +227,49 @@ export function SelectionPopup({ selectedText, position, onClose }: SelectionPop
           </button>
         </div>
       </div>
+
+      {/* 
+        [DISABLED FOR NOW - UNCOMMENT WHEN YOU HAVE AN ACTIVE GEMINI API KEY IN .env.local]
+        Full Sentence Translation Card (Bahasa Indonesia)
+      */}
+      {/* {(translationText || isTranslating) && (
+        <div
+          style={{
+            backgroundColor: "rgba(56, 189, 248, 0.08)",
+            borderRadius: "14px",
+            padding: "10px 12px",
+            border: "1px solid rgba(56, 189, 248, 0.2)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#38bdf8",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            <Sparkles style={{ width: "13px", height: "13px", color: "#38bdf8" }} />
+            <span>Arti Kalimat (Bahasa Indonesia)</span>
+          </div>
+          <p style={{ fontSize: "13px", color: "#f1f5f9", lineHeight: 1.45, margin: 0, fontWeight: 500 }}>
+            {isTranslating && !translationText ? (
+              <span style={{ color: "#94a3b8", fontSize: "12px", fontStyle: "italic" }}>
+                Menerjemahkan kalimat...
+              </span>
+            ) : (
+              translationText
+            )}
+          </p>
+        </div>
+      )} */}
 
       {/* Tabs */}
       <div

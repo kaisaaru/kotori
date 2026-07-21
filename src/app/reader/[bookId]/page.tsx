@@ -26,6 +26,38 @@ import ReaderSettingsPanel from "@/components/reader/ReaderSettingsPanel";
 import TableOfContents from "@/components/reader/TableOfContents";
 import { SelectionPopup } from "@/components/reader/SelectionPopup";
 
+// Helper to extract clean base text and explicit furigana from a selection container
+function extractTextAndFurigana(container: HTMLElement, range?: Range | null, selection?: Selection | null) {
+  let baseText = "";
+  let explicitFurigana = "";
+
+  try {
+    const clone = container.cloneNode(true) as HTMLElement;
+
+    // Extract explicit furigana from <rt> tags
+    const rtElements = clone.querySelectorAll("rt");
+    if (rtElements.length > 0) {
+      const furiganaParts: string[] = [];
+      rtElements.forEach((rt) => {
+        const text = rt.textContent?.trim();
+        if (text) furiganaParts.push(text);
+      });
+      explicitFurigana = furiganaParts.join("");
+    }
+
+    // Remove <rt> and <rp> elements to get clean base text
+    clone.querySelectorAll("rt, rp").forEach((el) => el.remove());
+    baseText = clone.textContent?.replace(/\s+/g, "").trim() || "";
+  } catch {
+    baseText = container.textContent?.replace(/\s+/g, "").trim() || "";
+  }
+
+  return {
+    baseText: baseText || (selection ? selection.toString().trim() : ""),
+    explicitFurigana,
+  };
+}
+
 export default function ReaderPage() {
   const params = useParams();
   const router = useRouter();
@@ -47,15 +79,37 @@ export default function ReaderPage() {
     setShowToolbar,
   } = useReaderStore();
 
+  const mainRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectionState, setSelectionState] = useState<{
     text: string;
+    explicitFurigana?: string;
     position: { x: number; y: number };
   } | null>(null);
+  const [bookmarkOverlay, setBookmarkOverlay] = useState<{
+    text: string;
+    explicitFurigana?: string;
+    position: { x: number; y: number };
+    rects: Array<{ left: number; top: number; width: number; height: number }>;
+  } | null>(null);
+  const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
   const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Detect highlighted/blocked text selection for dictionary popup
+  // Sync scroll position of contentRef container for 100% locked highlight overlay
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      setScrollPos({ left: container.scrollLeft, top: container.scrollTop });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [isLoaded]);
+
+  // Detect highlighted/blocked text selection for dictionary popup & persistent bookmark
   useEffect(() => {
     const handleMouseUp = () => {
       const selection = window.getSelection();
@@ -64,20 +118,46 @@ export default function ReaderPage() {
       }
 
       let text = "";
+      let explicitFurigana = "";
       let rect: DOMRect | null = null;
+      let relativeRects: Array<{ left: number; top: number; width: number; height: number }> = [];
 
       try {
         const range = selection.getRangeAt(0);
         rect = range.getBoundingClientRect();
 
+        if (contentRef.current && mainRef.current) {
+          const mainRect = mainRef.current.getBoundingClientRect();
+          const scrollTop = contentRef.current.scrollTop;
+          const scrollLeft = contentRef.current.scrollLeft;
+
+          const rawClientRects = Array.from(range.getClientRects()).map((r) => ({
+            left: r.left - mainRect.left + scrollLeft,
+            top: r.top - mainRect.top + scrollTop,
+            width: Math.max(r.width, 10),
+            height: Math.max(r.height, 16),
+          }));
+
+          if (rawClientRects.length > 0) {
+            relativeRects = rawClientRects;
+          } else {
+            relativeRects = [
+              {
+                left: rect.left - mainRect.left + scrollLeft,
+                top: rect.top - mainRect.top + scrollTop,
+                width: Math.max(rect.width, 16),
+                height: Math.max(rect.height, 24),
+              },
+            ];
+          }
+        }
+
         const container = document.createElement("div");
         container.appendChild(range.cloneContents());
 
-        // Strip HTML <rt> and <rp> Furigana elements from selection
-        const rtElements = container.querySelectorAll("rt, rp");
-        rtElements.forEach((el) => el.remove());
-
-        text = container.textContent?.trim() || "";
+        const extracted = extractTextAndFurigana(container, range, selection);
+        text = extracted.baseText;
+        explicitFurigana = extracted.explicitFurigana;
       } catch {
         text = selection.toString().trim();
       }
@@ -87,8 +167,19 @@ export default function ReaderPage() {
       }
 
       if (text.length > 0 && text.length <= 50 && rect) {
+        setBookmarkOverlay({
+          text,
+          explicitFurigana: explicitFurigana || undefined,
+          position: {
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+          },
+          rects: relativeRects,
+        });
+
         setSelectionState({
           text,
+          explicitFurigana: explicitFurigana || undefined,
           position: {
             x: rect.left + rect.width / 2,
             y: rect.top,
@@ -531,6 +622,7 @@ export default function ReaderPage() {
 
       {/* ===== Main Reading Area ===== */}
       <main
+        ref={mainRef}
         style={{
           flex: 1,
           width: "100%",
@@ -614,6 +706,62 @@ export default function ReaderPage() {
         >
           <ChevronRight style={{ width: "20px", height: "20px" }} />
         </button>
+
+        {/* ===== Persistent Selection Highlight Overlay ===== */}
+        {bookmarkOverlay && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              pointerEvents: "none",
+              zIndex: 20,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: `${-scrollPos.top}px`,
+                left: `${-scrollPos.left}px`,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+              }}
+            >
+              {bookmarkOverlay.rects.map((r, idx) => (
+                <div
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectionState({
+                      text: bookmarkOverlay.text,
+                      explicitFurigana: bookmarkOverlay.explicitFurigana,
+                      position: bookmarkOverlay.position,
+                    });
+                  }}
+                  title="Penanda Bacaan Terakhir (Klik untuk lihat kamus)"
+                  style={{
+                    position: "absolute",
+                    left: `${r.left}px`,
+                    top: `${r.top}px`,
+                    width: `${r.width}px`,
+                    height: `${r.height}px`,
+                    backgroundColor: "rgba(56, 189, 248, 0.4)",
+                    borderLeft: r.height > r.width ? "3px dashed #0284c7" : "none",
+                    borderBottom: r.height <= r.width ? "2px dashed #0284c7" : "none",
+                    borderRadius: "3px",
+                    boxShadow: "0 0 10px rgba(56, 189, 248, 0.4)",
+                    pointerEvents: "auto",
+                    cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         <div
           ref={contentRef}
@@ -758,6 +906,7 @@ export default function ReaderPage() {
       {selectionState && (
         <SelectionPopup
           selectedText={selectionState.text}
+          explicitFurigana={selectionState.explicitFurigana}
           position={selectionState.position}
           onClose={() => setSelectionState(null)}
         />
