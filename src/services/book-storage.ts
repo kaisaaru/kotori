@@ -138,6 +138,11 @@ export async function getProgress(
   return db.get("progress", bookId);
 }
 
+export async function deleteProgress(bookId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete("progress", bookId);
+}
+
 // ===== Settings =====
 
 export async function saveSettings(settings: ReaderSettings): Promise<void> {

@@ -42,6 +42,11 @@
 ### 🔒 7. Privasi & Dukungan Offline (*IndexedDB Local Storage*)
 - Seluruh file EPUB dan kemajuan membaca (*reading progress*) tersimpan **100% secara lokal** di browser perangkat pengguna (IndexedDB). Tidak ada file yang diunggah ke server eksternal.
 
+### 🎭 8. Efek Transisi Terbang & Modal Preview 3D Imersif
+- **Animasi Transisi Tata Letak (Grid ↔ Bookshelf)**: Perpindahan antartampilan "buku terbang" yang sangat mulus menggunakan CSS View Transitions API yang disinkronkan dengan algoritma urutan abjad Jepang (Gojūon).
+- **Modal Preview & Transisi Buku 3D**: Saat buku diklik, lembaran kertas detail progres meluncur keluar secara horizontal dari balik buku. Klik membaca akan menyelinapkan kertas kembali, memosisikan buku di tengah, membuka cover depannya secara 3D (*rotateY*), dan memperbesar (*scale zoom*) ke arah kamera hingga layar menjadi putih bersih sebelum rute beralih secara mulus.
+- **Responsif Horisontal**: Tampilan mobile menyesuaikan ukuran buku secara mini dan proporsional untuk mempertahankan esensi membuka buku horizontal yang alami.
+
 ---
 
 ## 🛠️ Langkah Memulai (Getting Started)

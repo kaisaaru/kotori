@@ -8,6 +8,7 @@ export interface BookMeta {
   totalChapters: number;
   uploadedAt: number; // timestamp
   lastReadAt: number | null;
+  englishTitle?: string;
 }
 
 export interface Chapter {
