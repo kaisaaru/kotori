@@ -212,6 +212,8 @@ export default function HomePage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMenuAnimating, setIsMenuAnimating] = useState(false);
+  const [previewBook, setPreviewBook] = useState<BookMeta | null>(null);
+  const [previewPhase, setPreviewPhase] = useState<"none" | "idle" | "tucked" | "tucking" | "centering" | "opening" | "zooming">("none");
 
   const openMobileMenu = () => {
     setIsMobileMenuOpen(true);
@@ -400,6 +402,47 @@ export default function HomePage() {
       setViewMode(newMode);
       localStorage.setItem("kotoba-view-mode", newMode);
     }
+  };
+
+  const handleBookClick = (book: BookMeta) => {
+    setPreviewBook(book);
+    setPreviewPhase("tucked");
+    setTimeout(() => {
+      setPreviewPhase("idle");
+    }, 50);
+  };
+
+  const handleClosePreview = () => {
+    if (previewPhase !== "idle") return;
+    setPreviewPhase("tucked");
+    setTimeout(() => {
+      setPreviewBook(null);
+      setPreviewPhase("none");
+    }, 500);
+  };
+
+  const startBookTransition = (book: BookMeta) => {
+    setPreviewPhase("tucking");
+    
+    setTimeout(() => {
+      setPreviewPhase("centering");
+      
+      setTimeout(() => {
+        setPreviewPhase("opening");
+        
+        setTimeout(() => {
+          setPreviewPhase("zooming");
+          
+          setTimeout(() => {
+            router.push(`/reader/${book.id}`);
+            setTimeout(() => {
+              setPreviewBook(null);
+              setPreviewPhase("none");
+            }, 500);
+          }, 600);
+        }, 1000);
+      }, 500);
+    }, 500);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1261,7 +1304,7 @@ export default function HomePage() {
                             <BookCard
                               book={book}
                               progress={progresses[book.id]}
-                              onOpen={() => router.push(`/reader/${book.id}`)}
+                              onOpen={() => handleBookClick(book)}
                               onDelete={() => setDeleteConfirm(book.id)}
                               onResetProgress={() => setResetConfirm(book.id)}
                               t={t}
@@ -1307,7 +1350,7 @@ export default function HomePage() {
                     key={book.id}
                     book={book}
                     progress={progresses[book.id]}
-                    onOpen={() => router.push(`/reader/${book.id}`)}
+                    onOpen={() => handleBookClick(book)}
                     onDelete={() => setDeleteConfirm(book.id)}
                     onResetProgress={() => setResetConfirm(book.id)}
                     t={t}
@@ -1482,6 +1525,252 @@ export default function HomePage() {
                 >
                   {language === "ID" ? "Reset" : language === "JP" ? "リセット" : "Reset"}
                 </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Book Preview Modal */}
+      {previewBook && previewPhase !== "none" && (() => {
+        const progress = progresses[previewBook.id];
+        const progressPercent = progress
+          ? Math.round(
+              ((progress.chapterIndex + progress.scrollPosition) /
+                Math.max(previewBook.totalChapters, 1)) *
+                100
+            )
+          : 0;
+
+        const hasProgress = progressPercent > 0;
+        const lastReadChapter = progress
+          ? `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${progress.chapterIndex + 1}`
+          : null;
+
+        const isActive = previewPhase !== "tucked" && previewPhase !== "zooming";
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 300,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: isActive ? "rgba(15, 23, 42, 0.75)" : "rgba(15, 23, 42, 0)",
+              backdropFilter: isActive ? "blur(12px)" : "blur(0px)",
+              WebkitBackdropFilter: isActive ? "blur(12px)" : "blur(0px)",
+              transition: "background-color 0.5s ease, backdrop-filter 0.5s ease, -webkit-backdrop-filter 0.5s ease",
+            }}
+            onClick={handleClosePreview}
+          >
+            {/* White Zoom Overlay */}
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                backgroundColor: "#ffffff",
+                opacity: previewPhase === "zooming" ? 1 : 0,
+                pointerEvents: "none",
+                transition: "opacity 0.6s ease-in-out",
+                zIndex: 320,
+              }}
+            />
+
+            {/* Modal Container */}
+            <div
+              className={`kb-preview-container kb-preview-phase-${previewPhase}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Paper B (Preview Page) */}
+              <div className="kb-preview-paper-b">
+                <div>
+                  <h4
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 800,
+                      color: "var(--kb-text)",
+                      marginBottom: "6px",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {previewBook.title}
+                  </h4>
+                  <p style={{ fontSize: "12px", color: "var(--kb-text-secondary)", marginBottom: "20px" }}>
+                    {previewBook.author || t.unknownAuthor}
+                  </p>
+
+                  <div className="kb-preview-status-box" style={{ padding: "12px", borderRadius: "12px", backgroundColor: "var(--kb-bg-secondary)", border: "1px solid var(--kb-border-subtle)" }}>
+                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--kb-text-muted)", marginBottom: "4px" }}>
+                      {language === "ID" ? "STATUS MEMBACA" : language === "JP" ? "読書の進捗" : "READING STATUS"}
+                    </p>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>
+                      {hasProgress ? t.readProgress(progressPercent) : t.unread}
+                    </p>
+                    {lastReadChapter && (
+                      <p style={{ fontSize: "12px", color: "var(--kb-text-secondary)", marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {lastReadChapter}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => startBookTransition(previewBook)}
+                  style={{
+                    width: "100%",
+                    borderRadius: "14px",
+                    padding: "12px 16px",
+                    backgroundColor: "var(--kb-primary)",
+                    color: "white",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 12px rgba(99,102,241,0.25)",
+                    transition: "transform 0.15s ease, opacity 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
+                >
+                  <span>{hasProgress ? (language === "ID" ? "Lanjutkan Membaca" : language === "JP" ? "読書を続ける" : "Continue Reading") : (language === "ID" ? "Mulai Membaca" : language === "JP" ? "読書を開始" : "Start Reading")}</span>
+                </button>
+              </div>
+
+              {/* Book A */}
+              <div className="kb-preview-book-a">
+                {/* Spine shadow */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width: "10px",
+                    background: "linear-gradient(to right, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 100%)",
+                    zIndex: 4,
+                    pointerEvents: "none",
+                    borderRadius: "4px 0 0 4px",
+                  }}
+                />
+
+                {/* Right Page (revealed when book cover flips open) */}
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    backgroundColor: "#ffffff",
+                    borderRadius: "0 12px 12px 0",
+                    border: "1px solid #e2e8f0",
+                    borderLeft: "none",
+                    boxShadow: "5px 5px 25px rgba(0,0,0,0.2)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "24px",
+                    color: "#0f172a",
+                    transform: "rotateY(0deg)",
+                    backfaceVisibility: "hidden",
+                    zIndex: 1,
+                  }}
+                >
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ width: "24px", height: "3px", backgroundColor: "var(--kb-primary)", margin: "0 auto 16px auto" }} />
+                    <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--kb-primary)", marginBottom: "4px" }}>
+                      {language === "ID" ? "Membaca" : language === "JP" ? "読書中" : "Reading"}
+                    </p>
+                    <h4 style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", maxHeight: "60px" }}>
+                      {previewBook.title}
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Left Page cover folder */}
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    transformOrigin: "left center",
+                    transform: 
+                      previewPhase === "opening" || previewPhase === "zooming"
+                        ? "rotateY(-180deg)"
+                        : "rotateY(0deg)",
+                    transition: "transform 1.0s cubic-bezier(0.25, 1, 0.5, 1)",
+                    transformStyle: "preserve-3d",
+                    zIndex: 5,
+                  }}
+                >
+                  {/* Cover front side */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      backgroundColor: "var(--kb-surface)",
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                      borderRadius: "0 12px 12px 0",
+                      overflow: "hidden",
+                      boxShadow: "10px 10px 30px rgba(0,0,0,0.3)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      zIndex: 2,
+                    }}
+                  >
+                    {previewBook.coverUrl ? (
+                      <img
+                        src={previewBook.coverUrl}
+                        alt={previewBook.title}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "#334155",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "white",
+                          padding: "20px",
+                          textAlign: "center",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {previewBook.title}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Left Inside Page ( revealed on flip ) */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      backgroundColor: "#fafafa",
+                      borderRadius: "12px 0 0 12px",
+                      border: "1px solid #e2e8f0",
+                      borderRight: "none",
+                      transform: "rotateY(180deg)",
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                      zIndex: 1,
+                      boxShadow: "-10px 10px 30px rgba(0,0,0,0.2)",
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
