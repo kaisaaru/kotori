@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { flushSync } from "react-dom";
 import {
   BookOpen,
   Upload,
@@ -19,6 +20,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
+  LayoutGrid,
 } from "lucide-react";
 import { parseEpub } from "@/services/epub-parser";
 import {
@@ -146,6 +148,53 @@ const TRANSLATIONS = {
   },
 };
 
+/* ===== Helper to Parse Series and Volume from Title ===== */
+function parseSeriesAndVolume(title: string): { series: string; volume: number | null } {
+  // Convert full-width numbers to half-width numbers and normalize all space characters
+  let cleanTitle = title
+    .replace(/\.epub$/i, "")
+    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+    .replace(/[\s\u00a0\u3000]+/g, " ")
+    .trim();
+
+  // 1. Remove bracket contents like 【電子特典付き】, (z-library), etc.
+  cleanTitle = cleanTitle.replace(/[【\[\(\{\uff08\uff3b].*?[】\]\)\}\uff09\uff3d]/g, "").trim();
+
+  // 2. Parse volume numbers
+  let volume: number | null = null;
+  const patterns = [
+    /\s+(?:volume|vol|v)\.?\s*(\d+)/i,          // Vol 1, Vol. 1, Volume 1, v1
+    /\s+(\d+)\s*$/i,                           // "Sword Art Online 1" at the end
+    /第?\s*(\d+)\s*巻/i,                       // 1巻, 第1巻
+    /\b(\d+)\b/,                               // Any standalone number in the title
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleanTitle.match(pattern);
+    if (match) {
+      volume = parseInt(match[1], 10);
+      cleanTitle = cleanTitle.replace(pattern, "").trim();
+      break;
+    }
+  }
+
+  // 3. Extract the clean series name (omit sub-volume subtitles / suffixes)
+  // Split by full-width or half-width spaces
+  const parts = cleanTitle.split(/[\s　]+/);
+  if (parts.length > 1) {
+    // If the first part contains Japanese characters (Kanji/Kana), we treat it as the main series name
+    const hasJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(parts[0]);
+    if (hasJapanese) {
+      cleanTitle = parts[0];
+    }
+  }
+
+  // Clean trailing punctuation/dashes
+  cleanTitle = cleanTitle.replace(/\s*[-–—:：~～]\s*$/, "").trim();
+
+  return { series: cleanTitle, volume };
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [books, setBooks] = useState<BookMeta[]>([]);
@@ -159,6 +208,8 @@ export default function HomePage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [language, setLanguage] = useState<"ID" | "EN" | "JP">("ID");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"shelf" | "grid">("shelf");
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMenuAnimating, setIsMenuAnimating] = useState(false);
 
@@ -224,6 +275,9 @@ export default function HomePage() {
 
     const savedLang = localStorage.getItem("kotoba-language") as "ID" | "EN" | "JP" | null;
     if (savedLang) setLanguage(savedLang);
+
+    const savedViewMode = localStorage.getItem("kotoba-view-mode") as "shelf" | "grid" | null;
+    if (savedViewMode) setViewMode(savedViewMode);
   }, []);
 
   const handleLanguageChange = (lang: "ID" | "EN" | "JP") => {
@@ -320,6 +374,34 @@ export default function HomePage() {
     document.documentElement.setAttribute("data-theme", newTheme);
   };
 
+  const changeViewMode = (newMode: "shelf" | "grid") => {
+    if (typeof document !== "undefined" && (document as any).startViewTransition) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+      }, 500);
+
+      const transition = (document as any).startViewTransition(() => {
+        flushSync(() => {
+          setViewMode(newMode);
+        });
+        localStorage.setItem("kotoba-view-mode", newMode);
+      });
+      transition.finished
+        .then(() => {
+          clearTimeout(timer);
+          setIsTransitioning(false);
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          setIsTransitioning(false);
+        });
+    } else {
+      setViewMode(newMode);
+      localStorage.setItem("kotoba-view-mode", newMode);
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -339,8 +421,52 @@ export default function HomePage() {
       b.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const sortedFilteredBooks = useMemo(() => {
+    return [...filteredBooks].sort((a, b) => {
+      const { series: seriesA, volume: volA } = parseSeriesAndVolume(a.title);
+      const { series: seriesB, volume: volB } = parseSeriesAndVolume(b.title);
+      
+      const seriesCompare = seriesA.localeCompare(seriesB, "ja");
+      if (seriesCompare !== 0) return seriesCompare;
+      
+      if (volA === null && volB === null) return b.uploadedAt - a.uploadedAt;
+      if (volA === null) return 1;
+      if (volB === null) return -1;
+      return volA - volB;
+    });
+  }, [filteredBooks]);
+
+  const groupedShelves = useMemo(() => {
+    if (viewMode === "grid" || searchQuery) return null;
+
+    // Grouping by series
+    const groups: Record<string, BookMeta[]> = {};
+    for (const book of sortedFilteredBooks) {
+      const { series } = parseSeriesAndVolume(book.title);
+      const key = series.toLowerCase().trim();
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(book);
+    }
+
+    const shelves: { seriesName: string; books: BookMeta[] }[] = [];
+
+    for (const key of Object.keys(groups)) {
+      const groupBooks = groups[key];
+      const seriesName = parseSeriesAndVolume(groupBooks[0].title).series;
+      shelves.push({ seriesName, books: groupBooks });
+    }
+
+    // Sort shelves alphabetically by series name
+    shelves.sort((a, b) => a.seriesName.localeCompare(b.seriesName, "ja"));
+
+    return { shelves };
+  }, [sortedFilteredBooks, viewMode, searchQuery]);
+
   return (
     <div
+      className={isTransitioning ? "kb-view-transitioning" : ""}
       style={{
         minHeight: "100vh",
         backgroundColor: "var(--kb-bg)",
@@ -546,6 +672,34 @@ export default function HomePage() {
                 <Sun style={{ width: "18px", height: "18px" }} />
               ) : (
                 <Moon style={{ width: "18px", height: "18px" }} />
+              )}
+            </button>
+
+            {/* View mode toggle */}
+            <button
+              onClick={() => {
+                changeViewMode(viewMode === "shelf" ? "grid" : "shelf");
+              }}
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "var(--kb-bg-secondary)",
+                border: "1px solid var(--kb-border)",
+                color: "var(--kb-text-secondary)",
+                cursor: "pointer",
+                flexShrink: 0,
+                transition: "all 0.2s ease",
+              }}
+              title={viewMode === "shelf" ? (language === "ID" ? "Ganti ke tampilan grid" : language === "JP" ? "グリッド表示へ" : "Switch to grid view") : (language === "ID" ? "Ganti ke tampilan rak" : language === "JP" ? "本棚表示へ" : "Switch to bookshelf view")}
+            >
+              {viewMode === "shelf" ? (
+                <LayoutGrid style={{ width: "18px", height: "18px" }} />
+              ) : (
+                <Library style={{ width: "18px", height: "18px" }} />
               )}
             </button>
 
@@ -775,6 +929,45 @@ export default function HomePage() {
                       <Moon style={{ width: "18px", height: "18px", color: "#6366f1" }} />
                     )}
                     <span>{theme === "dark" ? t.themeLight : t.themeDark}</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Tampilan Section */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--kb-text-secondary)", textTransform: "uppercase" }}>
+                  {language === "ID" ? "Tampilan Perpustakaan" : language === "JP" ? "表示モード" : "Library View"}
+                </label>
+                <button
+                  onClick={() => {
+                    changeViewMode(viewMode === "shelf" ? "grid" : "shelf");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    backgroundColor: "var(--kb-bg-secondary)",
+                    border: "1px solid var(--kb-border)",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: "var(--kb-text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    {viewMode === "shelf" ? (
+                      <>
+                        <LayoutGrid style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
+                        <span>{language === "ID" ? "Ganti ke Grid" : language === "JP" ? "グリッド表示へ" : "Switch to Grid"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Library style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
+                        <span>{language === "ID" ? "Ganti ke Rak Buku" : language === "JP" ? "本棚表示へ" : "Switch to Bookshelf"}</span>
+                      </>
+                    )}
                   </div>
                 </button>
               </div>
@@ -1035,27 +1228,93 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Grid */}
-            <div
-              className="kb-book-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: "24px",
-              }}
-            >
-              {filteredBooks.map((book) => (
-                <BookCard
-                  key={book.id}
-                  book={book}
-                  progress={progresses[book.id]}
-                  onOpen={() => router.push(`/reader/${book.id}`)}
-                  onDelete={() => setDeleteConfirm(book.id)}
-                  onResetProgress={() => setResetConfirm(book.id)}
-                  t={t}
-                />
-              ))}
-            </div>
+            {groupedShelves ? (
+              /* Bookshelf View */
+              <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
+                {/* Visual Series Shelves */}
+                {groupedShelves.shelves.map((shelf) => (
+                  <div key={shelf.seriesName} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingLeft: "4px" }}>
+                      <h3 style={{ fontSize: "18px", fontWeight: 800, color: "var(--kb-text)" }}>
+                        {shelf.seriesName}
+                      </h3>
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
+                        {shelf.books.length} {language === "ID" ? "Volume" : language === "JP" ? "巻" : "Volumes"}
+                      </span>
+                    </div>
+                    
+                    {/* Visual Shelf Wrapper */}
+                    <div style={{ position: "relative", paddingBottom: "16px" }}>
+                      {/* Horizontal Scrolling Row */}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "24px",
+                          overflowX: "auto",
+                          padding: "4px 4px 16px 4px",
+                          scrollBehavior: "smooth",
+                        }}
+                        className="kb-shelf-row"
+                      >
+                        {shelf.books.map((book) => (
+                          <div key={book.id} style={{ width: "190px", flexShrink: 0 }}>
+                            <BookCard
+                              book={book}
+                              progress={progresses[book.id]}
+                              onOpen={() => router.push(`/reader/${book.id}`)}
+                              onDelete={() => setDeleteConfirm(book.id)}
+                              onResetProgress={() => setResetConfirm(book.id)}
+                              t={t}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Visual 3D Wood/Glass Shelf Bar */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: "12px",
+                          left: 0,
+                          right: 0,
+                          height: "8px",
+                          borderRadius: "4px",
+                          background: theme === "dark" 
+                            ? "linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05))" 
+                            : "linear-gradient(to bottom, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03))",
+                          borderBottom: theme === "dark" ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(15, 23, 42, 0.06)",
+                          boxShadow: theme === "dark" ? "0 4px 10px rgba(0, 0, 0, 0.3)" : "0 4px 8px rgba(0, 0, 0, 0.08)",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Grid View (Standard Flat Grid) */
+              <div
+                className="kb-book-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: "24px",
+                  alignItems: "start",
+                }}
+              >
+                {sortedFilteredBooks.map((book) => (
+                  <BookCard
+                    key={book.id}
+                    book={book}
+                    progress={progresses[book.id]}
+                    onOpen={() => router.push(`/reader/${book.id}`)}
+                    onDelete={() => setDeleteConfirm(book.id)}
+                    onResetProgress={() => setResetConfirm(book.id)}
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -1275,6 +1534,7 @@ function BookCard({
 
   return (
     <div
+      className="kb-book-card-animated"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1286,7 +1546,8 @@ function BookCard({
         cursor: "pointer",
         position: "relative",
         transition: "transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease",
-      }}
+        "--vt-name": `book-card-${book.id}`,
+      } as React.CSSProperties}
       onClick={onOpen}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-4px)";

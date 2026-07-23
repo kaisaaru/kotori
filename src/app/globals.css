@@ -418,3 +418,41 @@ body {
   }
 }
 
+/* ===== Shelf Scrollbar Styling ===== */
+.kb-shelf-row::-webkit-scrollbar {
+  height: 6px;
+}
+.kb-shelf-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kb-shelf-row::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+[data-theme="dark"] .kb-shelf-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+.kb-shelf-row::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .kb-shelf-row::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== View Transitions Customization ===== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
+}
+
+/* Custom cubic-bezier easing for the book fly transition */
+::view-transition-group(*) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); /* organic float & elastic land */
+}
+
+/* Enable view transition name only during layout transitions */
+.kb-view-transitioning .kb-book-card-animated {
+  view-transition-name: var(--vt-name);
+}
+
