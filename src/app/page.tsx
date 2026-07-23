@@ -16,6 +16,9 @@ import {
   User,
   Menu,
   X,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { parseEpub } from "@/services/epub-parser";
 import {
@@ -23,6 +26,7 @@ import {
   saveBook,
   deleteBook,
   getProgress,
+  deleteProgress,
 } from "@/services/book-storage";
 import { formatFileSize, truncate } from "@/lib/utils";
 import type { BookMeta, ReadingProgress } from "@/types/book";
@@ -41,7 +45,8 @@ const TRANSLATIONS = {
     readNow: "Baca Sekarang",
     continueReading: "Lanjutkan Membaca",
     deleteConfirmTitle: "Hapus Novel",
-    deleteConfirmDesc: "Apakah Anda yakin ingin menghapus buku ini dari perpustakaan lokal Anda? Kemajuan membaca yang tersimpan juga akan dihapus.",
+    deleteConfirmDesc: "Apakah Anda yakin ingin menghapus buku ini?",
+    deleteConfirmDescWithTitle: (title: string) => `Apakah Anda yakin ingin menghapus novel "${title}" dari perpustakaan lokal Anda? Kemajuan membaca yang tersimpan juga akan ikut terhapus.`,
     cancel: "Batal",
     delete: "Hapus",
     noMatchTitle: "Tidak ada novel yang cocok",
@@ -55,6 +60,15 @@ const TRANSLATIONS = {
     unread: "Belum Dibaca",
     readProgress: (percent: number) => `${percent}% Dibaca`,
     chaptersCount: (count: number) => `${count} BAB`,
+    bookExists: (title: string) => `Novel "${title}" sudah ada di perpustakaan.`,
+    bookAdded: (title: string) => `Novel "${title}" berhasil ditambahkan!`,
+    uploadReading: (filename: string) => `Membaca "${filename}"...`,
+    uploadSaving: (title: string) => `Menyimpan "${title}" ke perpustakaan...`,
+    resetProgress: "Reset Kemajuan",
+    progressReset: (title: string) => `Kemajuan membaca "${title}" berhasil di-reset.`,
+    resetConfirmTitle: "Reset Kemajuan Membaca",
+    resetConfirmDesc: (title: string) => `Apakah Anda yakin ingin me-reset kemajuan membaca untuk novel "${title}"? Semua progres membaca Anda akan diulang dari awal.`,
+    bookDeleted: (title: string) => `Novel "${title}" berhasil dihapus.`,
   },
   EN: {
     subtitle: "Japanese Novel Reader",
@@ -68,7 +82,8 @@ const TRANSLATIONS = {
     readNow: "Read Now",
     continueReading: "Continue Reading",
     deleteConfirmTitle: "Delete Novel",
-    deleteConfirmDesc: "Are you sure you want to remove this book from your local library? Saved reading progress will also be deleted.",
+    deleteConfirmDesc: "Are you sure you want to remove this book?",
+    deleteConfirmDescWithTitle: (title: string) => `Are you sure you want to remove "${title}" from your local library? Saved reading progress will also be deleted.`,
     cancel: "Cancel",
     delete: "Delete",
     noMatchTitle: "No matching novels found",
@@ -82,6 +97,15 @@ const TRANSLATIONS = {
     unread: "Unread",
     readProgress: (percent: number) => `${percent}% Read`,
     chaptersCount: (count: number) => `${count} CH`,
+    bookExists: (title: string) => `Novel "${title}" already exists in the library.`,
+    bookAdded: (title: string) => `Novel "${title}" added successfully!`,
+    uploadReading: (filename: string) => `Reading "${filename}"...`,
+    uploadSaving: (title: string) => `Saving "${title}" to library...`,
+    resetProgress: "Reset Progress",
+    progressReset: (title: string) => `Reading progress for "${title}" has been reset.`,
+    resetConfirmTitle: "Reset Reading Progress",
+    resetConfirmDesc: (title: string) => `Are you sure you want to reset the reading progress for the novel "${title}"? Your progress will start over from the beginning.`,
+    bookDeleted: (title: string) => `Novel "${title}" was successfully deleted.`,
   },
   JP: {
     subtitle: "日本語小説リーダー",
@@ -95,7 +119,8 @@ const TRANSLATIONS = {
     readNow: "読む",
     continueReading: "続きを読む",
     deleteConfirmTitle: "小説を削除",
-    deleteConfirmDesc: "この本をライブラリから削除してもよろしいですか？保存された読書の進捗も削除されます。",
+    deleteConfirmDesc: "この小説を削除してもよろしいですか？",
+    deleteConfirmDescWithTitle: (title: string) => `小説「${title}」をライブラリから削除してもよろしいですか？保存された読書の進捗も削除されます。`,
     cancel: "キャンセル",
     delete: "削除",
     noMatchTitle: "一致する小説が見つかりません",
@@ -109,6 +134,15 @@ const TRANSLATIONS = {
     unread: "未読",
     readProgress: (percent: number) => `${percent}% 既読`,
     chaptersCount: (count: number) => `${count} 章`,
+    bookExists: (title: string) => `小説「${title}」は既にライブラリに存在します。`,
+    bookAdded: (title: string) => `小説「${title}」が追加されました！`,
+    uploadReading: (filename: string) => `「${filename}」を読み込んでいます...`,
+    uploadSaving: (title: string) => `「${title}」をライブラリに保存しています...`,
+    resetProgress: "読書進捗をリセット",
+    progressReset: (title: string) => `「${title}」の読書進捗がリセットされました。`,
+    resetConfirmTitle: "読書進捗のリセット",
+    resetConfirmDesc: (title: string) => `小説「${title}」の読書進捗をリセットしてもよろしいですか？すべての進捗が最初からやり直しになります。`,
+    bookDeleted: (title: string) => `小説「${title}」が削除されました。`,
   },
 };
 
@@ -144,7 +178,42 @@ export default function HomePage() {
     }, 280);
   };
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [resetConfirm, setResetConfirm] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "delete" | "reset";
+  } | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastAnimatingOut, setToastAnimatingOut] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const dismissToast = useCallback(() => {
+    setToastAnimatingOut(true);
+    setTimeout(() => {
+      setToastVisible(false);
+      setToast(null);
+      setToastAnimatingOut(false);
+    }, 300);
+  }, []);
+
+  const showToast = useCallback((message: string, type: "success" | "error" | "delete" | "reset" = "success") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    setToastVisible(true);
+    setToastAnimatingOut(false);
+
+    toastTimerRef.current = setTimeout(() => {
+      dismissToast();
+    }, 4000);
+  }, [dismissToast]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     loadBooks();
@@ -190,12 +259,27 @@ export default function HomePage() {
       return;
     }
     setIsUploading(true);
+    let updatedBooks = [...books];
     for (const file of epubFiles) {
       try {
-        setUploadProgress(`Parsing "${file.name}"...`);
+        setUploadProgress(t.uploadReading(truncate(file.name, 35)));
         const { book, chapters } = await parseEpub(file);
-        setUploadProgress(`Saving "${book.title}"...`);
+
+        const exists = updatedBooks.some(
+          (b) =>
+            b.title.toLowerCase().trim() === book.title.toLowerCase().trim() &&
+            b.author.toLowerCase().trim() === book.author.toLowerCase().trim()
+        );
+
+        if (exists) {
+          showToast(t.bookExists(truncate(book.title, 40)), "error");
+          continue;
+        }
+
+        setUploadProgress(t.uploadSaving(truncate(book.title, 35)));
         await saveBook(book, chapters);
+        updatedBooks.push(book);
+        showToast(t.bookAdded(truncate(book.title, 40)), "success");
       } catch (error) {
         console.error(`Failed to parse ${file.name}:`, error);
         alert(`Failed to parse "${file.name}". Make sure it's a valid EPUB file.`);
@@ -204,12 +288,29 @@ export default function HomePage() {
     setIsUploading(false);
     setUploadProgress("");
     await loadBooks();
-  }, []);
+  }, [books, language, showToast, loadBooks, t]);
 
   const handleDelete = async (bookId: string) => {
+    const book = books.find((b) => b.id === bookId);
+    const bookTitle = book ? book.title : "";
     await deleteBook(bookId);
     setDeleteConfirm(null);
     await loadBooks();
+    showToast(t.bookDeleted(truncate(bookTitle, 40)), "delete");
+  };
+
+  const handleResetProgress = async (bookId: string) => {
+    const book = books.find((b) => b.id === bookId);
+    const bookTitle = book ? book.title : "";
+    try {
+      await deleteProgress(bookId);
+      setResetConfirm(null);
+      await loadBooks();
+      showToast(t.progressReset(truncate(bookTitle, 40)), "reset");
+    } catch (error) {
+      console.error("Failed to reset progress:", error);
+      alert("Failed to reset reading progress.");
+    }
   };
 
   const toggleTheme = () => {
@@ -722,28 +823,107 @@ export default function HomePage() {
               position: "fixed",
               inset: 0,
               zIndex: 100,
-              backgroundColor: "var(--kb-overlay)",
+              backgroundColor: "rgba(15, 23, 42, 0.6)",
               backdropFilter: "blur(8px)",
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: "16px",
+              padding: "24px",
+              boxSizing: "border-box",
             }}
           >
             <div
               style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                border: "4px solid var(--kb-primary-light)",
-                borderTopColor: "var(--kb-primary)",
+                backgroundColor: "#ffffff",
+                borderRadius: "20px",
+                padding: "32px 24px",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "20px",
+                maxWidth: "380px",
+                width: "100%",
+                boxSizing: "border-box",
+                animation: "scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
               }}
-              className="animate-spin"
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius: "50%",
+                  border: "4px solid #f1f5f9",
+                  borderTopColor: "var(--kb-primary)",
+                }}
+                className="animate-spin"
+              />
+              <p
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  color: "#334155",
+                  textAlign: "center",
+                  margin: 0,
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                  lineHeight: 1.5,
+                }}
+              >
+                {uploadProgress || "Processing novel..."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Toast Notification */}
+        {toastVisible && toast && (
+          <div
+            className="kb-toast"
+            style={{
+              animation: toastAnimatingOut
+                ? "toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards"
+                : "toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            }}
+          >
+            {toast.type === "success" && (
+              <CheckCircle2 style={{ width: "18px", height: "18px", color: "#3b82f6", flexShrink: 0 }} />
+            )}
+            {toast.type === "delete" && (
+              <Trash2 style={{ width: "18px", height: "18px", color: "#ef4444", flexShrink: 0 }} />
+            )}
+            {toast.type === "reset" && (
+              <RotateCcw style={{ width: "18px", height: "18px", color: "#64748b", flexShrink: 0 }} />
+            )}
+            {toast.type === "error" && (
+              <AlertTriangle style={{ width: "18px", height: "18px", color: "#f59e0b", flexShrink: 0 }} />
+            )}
+            <span style={{ flex: 1, wordBreak: "break-word" }}>{toast.message}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissToast();
+              }}
+              className="kb-toast-close"
+              title="Close notification"
+            >
+              <X style={{ width: "14px", height: "14px", strokeWidth: 2 }} />
+            </button>
+
+            {/* Bottom Progress Loading Bar */}
+            <div
+              className="kb-toast-progress"
+              style={{
+                backgroundColor:
+                  toast.type === "success"
+                    ? "#3b82f6"
+                    : toast.type === "delete"
+                    ? "#ef4444"
+                    : toast.type === "reset"
+                    ? "#64748b"
+                    : "#facc15",
+              }}
             />
-            <p style={{ fontSize: "16px", fontWeight: 700, color: "var(--kb-text)" }}>
-              {uploadProgress || "Processing novel..."}
-            </p>
           </div>
         )}
 
@@ -871,6 +1051,7 @@ export default function HomePage() {
                   progress={progresses[book.id]}
                   onOpen={() => router.push(`/reader/${book.id}`)}
                   onDelete={() => setDeleteConfirm(book.id)}
+                  onResetProgress={() => setResetConfirm(book.id)}
                   t={t}
                 />
               ))}
@@ -903,72 +1084,150 @@ export default function HomePage() {
       <Footer language={language} />
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "16px",
-            backgroundColor: "var(--kb-overlay)",
-            backdropFilter: "blur(6px)",
-          }}
-          onClick={() => setDeleteConfirm(null)}
-        >
+      {deleteConfirm && (() => {
+        const book = books.find((b) => b.id === deleteConfirm);
+        const displayTitle = book ? truncate(book.title, 45) : "";
+        return (
           <div
             style={{
-              width: "100%",
-              maxWidth: "380px",
-              borderRadius: "24px",
-              padding: "28px",
-              backgroundColor: "var(--kb-surface)",
-              border: "1px solid var(--kb-border)",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              backgroundColor: "var(--kb-overlay)",
+              backdropFilter: "blur(6px)",
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setDeleteConfirm(null)}
           >
-            <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px" }}>{t.deleteConfirmTitle}</h3>
-            <p style={{ fontSize: "14px", color: "var(--kb-text-secondary)", lineHeight: 1.5, marginBottom: "24px" }}>
-              {t.deleteConfirmDesc}
-            </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                style={{
-                  borderRadius: "12px",
-                  padding: "10px 20px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "var(--kb-text-secondary)",
-                  backgroundColor: "var(--kb-bg-secondary)",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                {t.cancel}
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                style={{
-                  borderRadius: "12px",
-                  padding: "10px 20px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "white",
-                  backgroundColor: "var(--kb-danger)",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                {t.delete}
-              </button>
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "380px",
+                borderRadius: "24px",
+                padding: "28px",
+                backgroundColor: "var(--kb-surface)",
+                border: "1px solid var(--kb-border)",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+                animation: "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px" }}>{t.deleteConfirmTitle}</h3>
+              <p style={{ fontSize: "14px", color: "var(--kb-text-secondary)", lineHeight: 1.5, marginBottom: "24px" }}>
+                {t.deleteConfirmDescWithTitle(displayTitle)}
+              </p>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--kb-text-secondary)",
+                    backgroundColor: "var(--kb-bg-secondary)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={() => handleDelete(deleteConfirm)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "white",
+                    backgroundColor: "var(--kb-danger)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.delete}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Reset Progress Confirmation Modal */}
+      {resetConfirm && (() => {
+        const book = books.find((b) => b.id === resetConfirm);
+        const displayTitle = book ? truncate(book.title, 45) : "";
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              backgroundColor: "var(--kb-overlay)",
+              backdropFilter: "blur(6px)",
+            }}
+            onClick={() => setResetConfirm(null)}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "380px",
+                borderRadius: "24px",
+                padding: "28px",
+                backgroundColor: "var(--kb-surface)",
+                border: "1px solid var(--kb-border)",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+                animation: "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px" }}>{t.resetConfirmTitle}</h3>
+              <p style={{ fontSize: "14px", color: "var(--kb-text-secondary)", lineHeight: 1.5, marginBottom: "24px" }}>
+                {t.resetConfirmDesc(displayTitle)}
+              </p>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setResetConfirm(null)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--kb-text-secondary)",
+                    backgroundColor: "var(--kb-bg-secondary)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={() => handleResetProgress(resetConfirm)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "white",
+                    backgroundColor: "#64748b",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {language === "ID" ? "Reset" : language === "JP" ? "リセット" : "Reset"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -980,15 +1239,31 @@ function BookCard({
   progress,
   onOpen,
   onDelete,
+  onResetProgress,
   t,
 }: {
   book: BookMeta;
   progress: ReadingProgress | undefined;
   onOpen: () => void;
   onDelete: () => void;
+  onResetProgress: () => void;
   t: (typeof TRANSLATIONS)["ID"];
 }) {
   const [showMenu, setShowMenu] = useState(false);
+
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".kb-dropdown-menu-wrapper")) {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener("click", handleOutsideClick);
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, [showMenu]);
 
   const progressPercent = progress
     ? Math.round(
@@ -1110,99 +1385,130 @@ function BookCard({
           </span>
         </div>
 
-        {/* Top Right Menu Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowMenu(!showMenu);
-          }}
+        {/* Top Right Menu Button & Wrapper */}
+        <div
+          className="kb-dropdown-menu-wrapper"
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: "absolute",
             right: "12px",
             top: "12px",
             zIndex: 10,
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "none",
-            color: "#ffffff",
-            backgroundColor: "rgba(15, 23, 42, 0.75)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            transition: "transform 0.15s ease, backgroundColor 0.15s ease",
           }}
         >
-          <MoreVertical style={{ width: "16px", height: "16px" }} />
-        </button>
-
-        {/* Dropdown Menu */}
-        {showMenu && (
-          <div
-            style={{
-              position: "absolute",
-              right: "10px",
-              top: "46px",
-              zIndex: 20,
-              minWidth: "150px",
-              overflow: "hidden",
-              borderRadius: "14px",
-              backgroundColor: "var(--kb-surface)",
-              border: "1px solid var(--kb-border)",
-              boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
             }}
-            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              border: "none",
+              color: "#ffffff",
+              backgroundColor: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              transition: "transform 0.15s ease, backgroundColor 0.15s ease",
+            }}
           >
-            <button
-              onClick={() => { setShowMenu(false); onOpen(); }}
+            <MoreVertical style={{ width: "16px", height: "16px" }} />
+          </button>
+
+          {/* Dropdown Menu */}
+          {showMenu && (
+            <div
               style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "10px 14px",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--kb-text)",
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
+                position: "absolute",
+                right: 0,
+                top: "36px",
+                zIndex: 20,
+                minWidth: "160px",
+                overflow: "hidden",
+                borderRadius: "14px",
+                backgroundColor: "var(--kb-surface)",
+                border: "1px solid var(--kb-border)",
+                boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              onClick={(e) => e.stopPropagation()}
             >
-              <BookOpen style={{ width: "15px", height: "15px", color: "var(--kb-primary)" }} />
-              {t.readNovel}
-            </button>
-            <button
-              onClick={() => { setShowMenu(false); onDelete(); }}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "10px 14px",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--kb-danger)",
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              <Trash2 style={{ width: "15px", height: "15px" }} />
-              {t.delete}
-            </button>
-          </div>
-        )}
+              <button
+                onClick={() => { setShowMenu(false); onOpen(); }}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "var(--kb-text)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                <BookOpen style={{ width: "15px", height: "15px", color: "var(--kb-primary)" }} />
+                {t.readNovel}
+              </button>
+
+              <button
+                onClick={() => { setShowMenu(false); onResetProgress(); }}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "var(--kb-text-secondary)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                <RotateCcw style={{ width: "15px", height: "15px", color: "var(--kb-text-secondary)" }} />
+                {t.resetProgress}
+              </button>
+
+              <button
+                onClick={() => { setShowMenu(false); onDelete(); }}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "var(--kb-danger)",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              >
+                <Trash2 style={{ width: "15px", height: "15px" }} />
+                {t.delete}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Bottom Reading Progress Bar */}
         {progressPercent > 0 && (
