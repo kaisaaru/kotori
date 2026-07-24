@@ -10,6 +10,8 @@ import {
   List,
   BookOpen,
   X,
+  Bookmark,
+  BookmarkCheck,
 } from "lucide-react";
 import { useReaderStore } from "@/stores/reader-store";
 import {
@@ -59,6 +61,60 @@ function extractTextAndFurigana(container: HTMLElement, range?: Range | null, se
   };
 }
 
+// Helper to locate live DOM Range for target text substring inside content container
+function findTextRange(container: HTMLElement, targetText: string): Range | null {
+  if (!container || !targetText) return null;
+
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let currentNode: Node | null;
+
+  while ((currentNode = walker.nextNode())) {
+    const content = currentNode.textContent;
+    if (content && content.includes(targetText)) {
+      const startOffset = content.indexOf(targetText);
+      const range = document.createRange();
+      range.setStart(currentNode, startOffset);
+      range.setEnd(currentNode, startOffset + targetText.length);
+      return range;
+    }
+  }
+
+  // Fallback: search across multiple adjacent text nodes
+  const fullText = container.textContent || "";
+  const fullIndex = fullText.indexOf(targetText);
+  if (fullIndex === -1) return null;
+
+  let charCount = 0;
+  let startNode: Node | null = null;
+  let startOffset = 0;
+  let endNode: Node | null = null;
+  let endOffset = 0;
+
+  const walker2 = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  while ((currentNode = walker2.nextNode())) {
+    const textLen = currentNode.textContent?.length || 0;
+    if (!startNode && charCount + textLen > fullIndex) {
+      startNode = currentNode;
+      startOffset = fullIndex - charCount;
+    }
+    if (startNode && charCount + textLen >= fullIndex + targetText.length) {
+      endNode = currentNode;
+      endOffset = fullIndex + targetText.length - charCount;
+      break;
+    }
+    charCount += textLen;
+  }
+
+  if (startNode && endNode) {
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    return range;
+  }
+
+  return null;
+}
+
 export default function ReaderPage() {
   const params = useParams();
   const router = useRouter();
@@ -89,13 +145,27 @@ export default function ReaderPage() {
     position: { x: number; y: number };
   } | null>(null);
   const [bookmarkOverlay, setBookmarkOverlay] = useState<{
+    chapterIndex: number;
     text: string;
     explicitFurigana?: string;
     position: { x: number; y: number };
     rects: Array<{ left: number; top: number; width: number; height: number }>;
   } | null>(null);
   const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Sync bookmark state when chapter changes
+  useEffect(() => {
+    if (!bookId) return;
+    getProgress(bookId).then((p) => {
+      if (p && p.chapterIndex === currentChapterIndex) {
+        setIsBookmarked(true);
+      } else {
+        setIsBookmarked(false);
+      }
+    });
+  }, [bookId, currentChapterIndex]);
 
   // Sync scroll position of contentRef container for 100% locked highlight overlay
   useEffect(() => {
@@ -110,6 +180,43 @@ export default function ReaderPage() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [isLoaded]);
 
+  // Recalculate bookmark rects dynamically on window resize / F11 fullscreen / layout reflow
+  const updateBookmarkRects = useCallback(() => {
+    if (!bookmarkOverlay || bookmarkOverlay.chapterIndex !== currentChapterIndex || !contentRef.current) return;
+
+    const range = findTextRange(contentRef.current, bookmarkOverlay.text);
+    if (!range) return;
+
+    const contentRect = contentRef.current.getBoundingClientRect();
+    const scrollTop = contentRef.current.scrollTop;
+    const scrollLeft = contentRef.current.scrollLeft;
+
+    const rawClientRects = Array.from(range.getClientRects()).map((r) => ({
+      left: r.left - contentRect.left + scrollLeft,
+      top: r.top - contentRect.top + scrollTop,
+      width: Math.max(r.width, 10),
+      height: Math.max(r.height, 16),
+    }));
+
+    if (rawClientRects.length > 0) {
+      const mainRect = range.getBoundingClientRect();
+      setBookmarkOverlay((prev) =>
+        prev
+          ? {
+              ...prev,
+              position: { x: mainRect.left + mainRect.width / 2, y: mainRect.top },
+              rects: rawClientRects,
+            }
+          : null
+      );
+    }
+  }, [bookmarkOverlay, currentChapterIndex]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateBookmarkRects);
+    return () => window.removeEventListener("resize", updateBookmarkRects);
+  }, [updateBookmarkRects]);
+
   // Detect highlighted/blocked text selection for dictionary popup & persistent bookmark
   useEffect(() => {
     const handleMouseUp = (e?: MouseEvent | TouchEvent) => {
@@ -119,7 +226,7 @@ export default function ReaderPage() {
       }
 
       const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) {
+      if (!selection || selection.isCollapsed || selection.type !== "Range") {
         return;
       }
 
@@ -166,14 +273,14 @@ export default function ReaderPage() {
         const range = selection.getRangeAt(0);
         rect = range.getBoundingClientRect();
 
-        if (contentRef.current && mainRef.current) {
-          const mainRect = mainRef.current.getBoundingClientRect();
+        if (contentRef.current) {
+          const contentRect = contentRef.current.getBoundingClientRect();
           const scrollTop = contentRef.current.scrollTop;
           const scrollLeft = contentRef.current.scrollLeft;
 
           const rawClientRects = Array.from(range.getClientRects()).map((r) => ({
-            left: r.left - mainRect.left + scrollLeft,
-            top: r.top - mainRect.top + scrollTop,
+            left: r.left - contentRect.left + scrollLeft,
+            top: r.top - contentRect.top + scrollTop,
             width: Math.max(r.width, 10),
             height: Math.max(r.height, 16),
           }));
@@ -183,8 +290,8 @@ export default function ReaderPage() {
           } else {
             relativeRects = [
               {
-                left: rect.left - mainRect.left + scrollLeft,
-                top: rect.top - mainRect.top + scrollTop,
+                left: rect.left - contentRect.left + scrollLeft,
+                top: rect.top - contentRect.top + scrollTop,
                 width: Math.max(rect.width, 16),
                 height: Math.max(rect.height, 24),
               },
@@ -208,6 +315,7 @@ export default function ReaderPage() {
 
       if (text.length > 0 && text.length <= 50 && rect) {
         setBookmarkOverlay({
+          chapterIndex: currentChapterIndex,
           text,
           explicitFurigana: explicitFurigana || undefined,
           position: {
@@ -225,6 +333,17 @@ export default function ReaderPage() {
             y: rect.top,
           },
         });
+
+        // Save progress instantly on text selection
+        if (book) {
+          saveProgress({
+            bookId: book.id,
+            chapterIndex: currentChapterIndex,
+            scrollPosition: getScrollPosition(),
+            lastReadAt: Date.now(),
+          });
+          setIsBookmarked(true);
+        }
       }
     };
 
@@ -234,7 +353,7 @@ export default function ReaderPage() {
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleMouseUp);
     };
-  }, [settings.enableDictionary]);
+  }, [settings.enableDictionary, book, currentChapterIndex]);
 
   // Load book data
   useEffect(() => {
@@ -325,10 +444,14 @@ export default function ReaderPage() {
     });
   }, [settings.writingMode]);
 
-  // Reset scroll whenever chapter index or writing mode changes
+  // Reset scroll and clear active selection popup whenever chapter index or writing mode changes
   useEffect(() => {
     if (isLoaded) {
       resetScrollPosition();
+      setSelectionState(null);
+      if (typeof window !== "undefined") {
+        window.getSelection()?.removeAllRanges();
+      }
     }
   }, [currentChapterIndex, settings.writingMode, isLoaded, resetScrollPosition]);
 
@@ -546,6 +669,7 @@ export default function ReaderPage() {
           borderBottom: "1px solid var(--kb-border)",
           transform: showToolbar ? "translateY(0)" : "translateY(-100%)",
           opacity: showToolbar ? 1 : 0,
+          pointerEvents: showToolbar ? "auto" : "none",
           transition: "transform 0.3s ease, opacity 0.3s ease",
         }}
       >
@@ -617,6 +741,45 @@ export default function ReaderPage() {
 
         {/* Right: Controls */}
         <div className="kb-reader-right-section" style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, marginLeft: "12px" }}>
+          {/* Bookmark Button (Placed to the LEFT of Table of Contents button) */}
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!book) return;
+              const currentPos = getScrollPosition();
+              await saveProgress({
+                bookId: book.id,
+                chapterIndex: currentChapterIndex,
+                scrollPosition: currentPos,
+                lastReadAt: Date.now(),
+              });
+              setIsBookmarked(true);
+              const title = chapters[currentChapterIndex]?.title || `Bab ${currentChapterIndex + 1}`;
+              triggerChapterNotice(`🔖 Bookmark tersimpan pada ${title}`);
+            }}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: isBookmarked ? "rgba(99,102,241,0.15)" : "var(--kb-bg-secondary)",
+              border: isBookmarked ? "1px solid var(--kb-primary)" : "1px solid var(--kb-border)",
+              color: isBookmarked ? "var(--kb-primary)" : "var(--kb-text)",
+              cursor: "pointer",
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            title="Simpan Bookmark Halaman Ini"
+          >
+            {isBookmarked ? (
+              <BookmarkCheck style={{ width: "16px", height: "16px", fill: "var(--kb-primary)" }} />
+            ) : (
+              <Bookmark style={{ width: "16px", height: "16px" }} />
+            )}
+          </button>
+
           <button
             onClick={() => { setTocOpen(!isTocOpen); setSettingsOpen(false); }}
             style={{
@@ -672,9 +835,8 @@ export default function ReaderPage() {
           display: "flex",
           justifyContent: "center",
           alignItems: "stretch",
-          paddingTop: showToolbar ? "64px" : "0px",
-          paddingBottom: showToolbar ? "56px" : "0px",
-          transition: "padding 0.3s ease",
+          paddingTop: "0px",
+          paddingBottom: "0px",
           backgroundColor: "var(--kb-bg)",
         }}
         onClick={handleContentClick}
@@ -747,116 +909,11 @@ export default function ReaderPage() {
           <ChevronRight style={{ width: "20px", height: "20px" }} />
         </button>
 
-        {/* ===== Persistent Selection Highlight Overlay ===== */}
-        {bookmarkOverlay && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              pointerEvents: "none",
-              zIndex: 20,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: `${-scrollPos.top}px`,
-                left: `${-scrollPos.left}px`,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-              }}
-            >
-              {bookmarkOverlay.rects.map((r, idx) => (
-                <div
-                  key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectionState({
-                      text: bookmarkOverlay.text,
-                      explicitFurigana: bookmarkOverlay.explicitFurigana,
-                      position: bookmarkOverlay.position,
-                    });
-                  }}
-                  title="Penanda Bacaan Terakhir (Klik untuk lihat kamus)"
-                  style={{
-                    position: "absolute",
-                    left: `${r.left}px`,
-                    top: `${r.top}px`,
-                    width: `${r.width}px`,
-                    height: `${r.height}px`,
-                    backgroundColor: "rgba(56, 189, 248, 0.4)",
-                    borderLeft: r.height > r.width ? "3px dashed #0284c7" : "none",
-                    borderBottom: r.height <= r.width ? "2px dashed #0284c7" : "none",
-                    borderRadius: "3px",
-                    boxShadow: "0 0 10px rgba(56, 189, 248, 0.4)",
-                    pointerEvents: "auto",
-                    cursor: "pointer",
-                  }}
-                >
-                  {/* Small Close Button at Top Right Corner of Selection */}
-                  {idx === 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBookmarkOverlay(null);
-                        setSelectionState(null);
-                        if (typeof window !== "undefined") {
-                          window.getSelection()?.removeAllRanges();
-                        }
-                      }}
-                      title="Batal seleksi"
-                      style={{
-                        position: "absolute",
-                        top: "-10px",
-                        right: "-10px",
-                        width: "20px",
-                        height: "20px",
-                        borderRadius: "50%",
-                        backgroundColor: "rgba(15, 23, 42, 0.85)",
-                        backdropFilter: "blur(8px)",
-                        WebkitBackdropFilter: "blur(8px)",
-                        color: "#94a3b8",
-                        border: "1px solid rgba(255, 255, 255, 0.25)",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        zIndex: 35,
-                        pointerEvents: "auto",
-                        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "scale(1.15)";
-                        e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.9)";
-                        e.currentTarget.style.color = "#ffffff";
-                        e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.backgroundColor = "rgba(15, 23, 42, 0.85)";
-                        e.currentTarget.style.color = "#94a3b8";
-                        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
-                      }}
-                    >
-                      <X style={{ width: "12px", height: "12px", strokeWidth: 2.5 }} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div
           ref={contentRef}
           className={`reader-content ${settings.writingMode === "vertical" ? "vertical" : "horizontal"}`}
           style={{
+            position: "relative",
             fontFamily: settings.fontFamily,
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
@@ -870,15 +927,124 @@ export default function ReaderPage() {
             opacity: isFading ? 0 : 1,
             transition: "opacity 0.15s ease",
           }}
-          dangerouslySetInnerHTML={{
-            __html: currentChapter.htmlContent && currentChapter.htmlContent.trim() !== ""
-              ? currentChapter.htmlContent
-              : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:40px;color:var(--kb-text-muted);">
-                  <h2 style="font-size:20px;font-weight:700;margin-bottom:12px;color:var(--kb-text);">${currentChapter.title}</h2>
-                  <p style="font-size:14px;">Halaman ini tidak berisi teks. Klik tombol Next di bawah atau buka Table of Contents untuk berpindah ke bab berikutnya.</p>
-                 </div>`
-          }}
-        />
+        >
+          {/* ===== Persistent Selection Highlight Overlay (Inside contentRef) ===== */}
+          {bookmarkOverlay && bookmarkOverlay.chapterIndex === currentChapterIndex && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                pointerEvents: "none",
+                zIndex: 20,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: `${-scrollPos.top}px`,
+                  left: `${-scrollPos.left}px`,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                }}
+              >
+                {bookmarkOverlay.rects.map((r, idx) => (
+                  <div
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectionState({
+                        text: bookmarkOverlay.text,
+                        explicitFurigana: bookmarkOverlay.explicitFurigana,
+                        position: bookmarkOverlay.position,
+                      });
+                    }}
+                    title="Penanda Bacaan Terakhir (Klik untuk lihat kamus)"
+                    style={{
+                      position: "absolute",
+                      left: `${r.left}px`,
+                      top: `${r.top}px`,
+                      width: `${r.width}px`,
+                      height: `${r.height}px`,
+                      backgroundColor: "rgba(56, 189, 248, 0.4)",
+                      borderLeft: r.height > r.width ? "3px dashed #0284c7" : "none",
+                      borderBottom: r.height <= r.width ? "2px dashed #0284c7" : "none",
+                      borderRadius: "3px",
+                      boxShadow: "0 0 10px rgba(56, 189, 248, 0.4)",
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {/* Small Close Button at Top Right Corner of Selection */}
+                    {idx === 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBookmarkOverlay(null);
+                          setSelectionState(null);
+                          if (typeof window !== "undefined") {
+                            window.getSelection()?.removeAllRanges();
+                          }
+                        }}
+                        title="Batal seleksi"
+                        style={{
+                          position: "absolute",
+                          top: "-10px",
+                          right: "-10px",
+                          width: "20px",
+                          height: "20px",
+                          borderRadius: "50%",
+                          backgroundColor: "rgba(15, 23, 42, 0.85)",
+                          backdropFilter: "blur(8px)",
+                          WebkitBackdropFilter: "blur(8px)",
+                          color: "#94a3b8",
+                          border: "1px solid rgba(255, 255, 255, 0.25)",
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          zIndex: 35,
+                          pointerEvents: "auto",
+                          transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.15)";
+                          e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.9)";
+                          e.currentTarget.style.color = "#ffffff";
+                          e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.backgroundColor = "rgba(15, 23, 42, 0.85)";
+                          e.currentTarget.style.color = "#94a3b8";
+                          e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.25)";
+                        }}
+                      >
+                        <X style={{ width: "12px", height: "12px", strokeWidth: 2.5 }} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div
+            dangerouslySetInnerHTML={{
+              __html: currentChapter.htmlContent && currentChapter.htmlContent.trim() !== ""
+                ? currentChapter.htmlContent
+                : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:40px;color:var(--kb-text-muted);">
+                    <h2 style="font-size:20px;font-weight:700;margin-bottom:12px;color:var(--kb-text);">${currentChapter.title}</h2>
+                    <p style="font-size:14px;">Halaman ini tidak berisi teks. Klik tombol Next di bawah atau buka Table of Contents untuk berpindah ke bab berikutnya.</p>
+                   </div>`
+            }}
+          />
+        </div>
       </main>
 
       {/* ===== Bottom Bar ===== */}
@@ -900,6 +1066,7 @@ export default function ReaderPage() {
           borderTop: "1px solid var(--kb-border)",
           transform: showToolbar ? "translateY(0)" : "translateY(100%)",
           opacity: showToolbar ? 1 : 0,
+          pointerEvents: showToolbar ? "auto" : "none",
           transition: "transform 0.3s ease, opacity 0.3s ease",
         }}
       >

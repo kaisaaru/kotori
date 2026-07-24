@@ -95,6 +95,58 @@ export async function parseEpub(
     });
   });
 
+  // 6b. Parse Table of Contents (TOC) from NCX or NAV
+  const tocMap = new Map<string, string>();
+  try {
+    const ncxItem = 
+      Array.from(manifestItems.values()).find((item) => item.mediaType === "application/x-dtbncx+xml") ||
+      manifestItems.get("ncx") ||
+      manifestItems.get("toc");
+
+    if (ncxItem) {
+      const ncxXml = await zip.file(opfDir + ncxItem.href)?.async("text");
+      if (ncxXml) {
+        const ncxDoc = new DOMParser().parseFromString(ncxXml, "text/xml");
+        ncxDoc.querySelectorAll("navPoint").forEach((navPoint) => {
+          const text = navPoint.querySelector("navLabel > text")?.textContent?.trim();
+          const src = navPoint.querySelector("content")?.getAttribute("src");
+          if (text && src) {
+            const cleanHref = src.split("#")[0];
+            const resolvedPath = resolveRelativePath(opfDir + ncxItem.href, cleanHref);
+            tocMap.set(cleanHref, text);
+            tocMap.set(resolvedPath, text);
+            const filename = cleanHref.split("/").pop() ?? "";
+            if (filename) tocMap.set(filename, text);
+          }
+        });
+      }
+    }
+
+    const navItem = Array.from(manifestItems.values()).find(
+      (item) => item.id === "nav" || item.href.includes("nav")
+    );
+    if (navItem && tocMap.size === 0) {
+      const navXml = await zip.file(opfDir + navItem.href)?.async("text");
+      if (navXml) {
+        const navDoc = new DOMParser().parseFromString(navXml, "text/html");
+        navDoc.querySelectorAll("nav a, ol a, ul a").forEach((a) => {
+          const text = a.textContent?.trim();
+          const src = a.getAttribute("href");
+          if (text && src) {
+            const cleanHref = src.split("#")[0];
+            const resolvedPath = resolveRelativePath(opfDir + navItem.href, cleanHref);
+            tocMap.set(cleanHref, text);
+            tocMap.set(resolvedPath, text);
+            const filename = cleanHref.split("/").pop() ?? "";
+            if (filename) tocMap.set(filename, text);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Could not parse EPUB TOC:", e);
+  }
+
   // 7. Extract chapters
   const bookId = generateId();
   const chapters: Chapter[] = [];
@@ -152,11 +204,39 @@ export async function parseEpub(
       }
     }
 
-    // Extract chapter title
-    const headingEl = body.querySelector("h1, h2, h3, h4, title");
-    const chapterTitle =
-      headingEl?.textContent?.trim() ||
-      `Chapter ${i + 1}`;
+    // Extract chapter title from TOC map, heading elements, or text patterns
+    const cleanChapterHref = manifestItem.href.split("#")[0];
+    const filename = cleanChapterHref.split("/").pop() ?? "";
+    let chapterTitle = 
+      tocMap.get(chapterPath) ||
+      tocMap.get(cleanChapterHref) ||
+      tocMap.get(filename) ||
+      "";
+
+    if (!chapterTitle) {
+      const headingEl = body.querySelector("h1, h2, h3, h4, .chapter-title, .title, .heading, .c-heading");
+      if (headingEl && headingEl.textContent?.trim()) {
+        chapterTitle = headingEl.textContent.trim();
+      }
+    }
+
+    if (!chapterTitle) {
+      // Try Japanese chapter title pattern matching inside body text: e.g. 第14話 過去との遭遇
+      const bodyText = body.textContent ?? "";
+      const jpMatch = bodyText.match(/(第\s*[\d０-９一二三四五六七八九十百千]+\s*[話章節幕][^\n<]{0,60})/);
+      if (jpMatch && jpMatch[1]) {
+        chapterTitle = jpMatch[1].trim();
+      } else {
+        const specialMatch = bodyText.match(/(プロローグ|エピローグ|序章|終章|転章|幕間|あとがき)/);
+        if (specialMatch && specialMatch[1]) {
+          chapterTitle = specialMatch[1].trim();
+        }
+      }
+    }
+
+    if (!chapterTitle) {
+      chapterTitle = `Chapter ${i + 1}`;
+    }
 
     // Strip inline colors/backgrounds so reader themes apply cleanly
     body.querySelectorAll("*").forEach((el) => {
