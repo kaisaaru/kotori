@@ -29,9 +29,11 @@ import {
   deleteBook,
   getProgress,
   deleteProgress,
+  getChapter,
+  getChapters,
 } from "@/services/book-storage";
 import { formatFileSize, truncate } from "@/lib/utils";
-import type { BookMeta, ReadingProgress } from "@/types/book";
+import type { BookMeta, ReadingProgress, Chapter } from "@/types/book";
 import { Footer } from "@/components/Footer";
 
 const TRANSLATIONS = {
@@ -213,7 +215,27 @@ export default function HomePage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMenuAnimating, setIsMenuAnimating] = useState(false);
   const [previewBook, setPreviewBook] = useState<BookMeta | null>(null);
-  const [previewPhase, setPreviewPhase] = useState<"none" | "idle" | "tucked" | "tucking" | "centering" | "opening" | "zooming">("none");
+  const [previewChapter, setPreviewChapter] = useState<Chapter | null>(null);
+  const [previewChapters, setPreviewChapters] = useState<Chapter[]>([]);
+  const [previewPhase, setPreviewPhase] = useState<"none" | "idle" | "tucked" | "tucking" | "centering" | "opening" | "flipping" | "zooming">("none");
+  const [isLandscapeImg, setIsLandscapeImg] = useState(false);
+
+  useEffect(() => {
+    setIsLandscapeImg(false);
+    if (previewBook) {
+      const progress = progresses[previewBook.id];
+      const chIndex = progress ? progress.chapterIndex : 0;
+      getChapter(previewBook.id, chIndex).then((ch) => {
+        setPreviewChapter(ch ?? null);
+      });
+      getChapters(previewBook.id).then((chs) => {
+        setPreviewChapters(chs || []);
+      });
+    } else {
+      setPreviewChapter(null);
+      setPreviewChapters([]);
+    }
+  }, [previewBook, progresses]);
 
   const openMobileMenu = () => {
     setIsMobileMenuOpen(true);
@@ -424,25 +446,49 @@ export default function HomePage() {
   const startBookTransition = (book: BookMeta) => {
     setPreviewPhase("tucking");
     
+    const progress = progresses[book.id];
+    const chapterIndex = progress ? progress.chapterIndex : 0;
+    
     setTimeout(() => {
       setPreviewPhase("centering");
       
       setTimeout(() => {
         setPreviewPhase("opening");
         
-        setTimeout(() => {
-          setPreviewPhase("zooming");
+        if (chapterIndex > 0) {
+          // Immediately start page flipping alongside cover opening (0ms delay)
+          setPreviewPhase("flipping");
+          
+          const numFlips = Math.min(chapterIndex, 10);
+          const flippingDuration = 400 + numFlips * 90;
           
           setTimeout(() => {
-            router.push(`/reader/${book.id}`);
+            setPreviewPhase("zooming");
+            
             setTimeout(() => {
-              setPreviewBook(null);
-              setPreviewPhase("none");
+              router.push(`/reader/${book.id}`);
+              setTimeout(() => {
+                setPreviewBook(null);
+                setPreviewPhase("none");
+              }, 400);
             }, 500);
-          }, 600);
-        }, 1000);
-      }, 500);
-    }, 500);
+          }, flippingDuration);
+        } else {
+          // No chapters read -> skip flipping sequence
+          setTimeout(() => {
+            setPreviewPhase("zooming");
+            
+            setTimeout(() => {
+              router.push(`/reader/${book.id}`);
+              setTimeout(() => {
+                setPreviewBook(null);
+                setPreviewPhase("none");
+              }, 400);
+            }, 500);
+          }, 500);
+        }
+      }, 400);
+    }, 400);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1547,6 +1593,109 @@ export default function HomePage() {
           ? `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${progress.chapterIndex + 1}`
           : null;
 
+        const numFlips = progress ? Math.min(progress.chapterIndex, 10) : 0;
+
+        // Dynamic book thickness scaled by total chapters (min 4px for short books, max 14px for thick books)
+        const totalChapters = previewBook.totalChapters || 15;
+        const maxThickness = Math.min(Math.max(Math.round(totalChapters * 0.35), 4), 14);
+        
+        const currentChapterIndex = progress ? progress.chapterIndex : 0;
+        const readRatio = totalChapters > 0 ? Math.min(currentChapterIndex / totalChapters, 1) : 0;
+        
+        const isOpen = previewPhase === "opening" || previewPhase === "flipping" || previewPhase === "zooming";
+        
+        // Calculate left & right stack depth dynamically
+        const leftStackDepth = isOpen ? Math.round(maxThickness * readRatio) : 0;
+        const rightStackDepth = isOpen ? Math.max(maxThickness - leftStackDepth, 1) : maxThickness;
+
+        // Multi-layered paper stack shadow generator (horizontal only to avoid top/bottom corner protrusions)
+        const getPaperStackShadow = (depth: number, side: "right" | "left") => {
+          if (depth <= 0) return "none";
+          const layers: string[] = [];
+          const sign = side === "right" ? 1 : -1;
+          for (let d = 1; d <= depth; d++) {
+            const color = d % 2 === 0 ? "#cbd5e1" : "#f8fafc";
+            layers.push(`${d * sign}px 0px 0px ${color}`);
+          }
+          layers.push(`${(depth + 3) * sign}px 2px 12px rgba(0, 0, 0, 0.22)`);
+          return layers.join(", ");
+        };
+
+        const getChapterMeta = (ch: Chapter | undefined, indexFallback: number) => {
+          if (!ch) {
+            return {
+              title: `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${indexFallback + 1}${language === "JP" ? "章" : ""}`,
+              heading: null as string | null,
+              image: null as string | null,
+              excerpt: null as string | null,
+            };
+          }
+
+          const defaultTitle = `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${(ch.index ?? indexFallback) + 1}${language === "JP" ? "章" : ""}`;
+          
+          let title = ch.title && !/^Chapter \d+$/i.test(ch.title) && !/^Bab \d+$/i.test(ch.title)
+            ? ch.title.trim()
+            : defaultTitle;
+
+          const rawText = ch.htmlContent
+            ? ch.htmlContent
+                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+                .replace(/<[^>]+>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+            : "";
+
+          let heading: string | null = null;
+          let bodyText = rawText;
+
+          // Search for dash subheadings (e.g. ——九月四日—— or ―八月三十日―), Japanese chapter (e.g. 第11話), or special headers
+          const dashMatch = rawText.match(/([―—–-]{1,4}[^-―—–\n]{1,40}[-―—–]{1,4})/);
+          const jpMatch = rawText.match(/(第\s*[\d０-９一二三四五六七八九十百千]+\s*[話章節幕][^\n<]{0,60})/);
+          const specialMatch = rawText.match(/(プロローグ|エピローグ|序章|終章|転章|幕間|あとがき|【[^】]+】)/);
+
+          const matchedHeader = dashMatch?.[1] || jpMatch?.[1] || specialMatch?.[1];
+
+          if (matchedHeader) {
+            heading = matchedHeader.trim();
+            const matchIdx = rawText.indexOf(matchedHeader);
+            if (matchIdx !== -1) {
+              bodyText = rawText.slice(matchIdx + matchedHeader.length).trim();
+            }
+          }
+
+          const excerpt = bodyText ? (bodyText.length > 180 ? bodyText.slice(0, 180) + "..." : bodyText) : null;
+
+          // Extract image: supports <img>, SVG <image xlink:href="...">, and <image href="...">
+          let imgMatch = ch.htmlContent?.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["']/i);
+          if (!imgMatch) {
+            imgMatch = ch.htmlContent?.match(/<image[^>]+(?:xlink:href|href)=["']([^"']+)["']/i);
+          }
+          if (!imgMatch && ch.htmlContent) {
+            try {
+              const parserDoc = new DOMParser().parseFromString(ch.htmlContent, "text/html");
+              const imgEl = parserDoc.querySelector("img[src], image[xlink\\:href], image[href], svg image");
+              if (imgEl) {
+                const src = imgEl.getAttribute("src") || imgEl.getAttribute("xlink:href") || imgEl.getAttribute("href");
+                if (src) {
+                  imgMatch = [imgEl.outerHTML, src];
+                }
+              }
+            } catch (e) {}
+          }
+
+          const image = imgMatch ? imgMatch[1] : null;
+
+          return { title, heading, image, excerpt };
+        };
+
+        const targetChapterIndex = progress ? progress.chapterIndex : 0;
+        const currentChapterMeta = getChapterMeta(previewChapter || previewChapters[targetChapterIndex], targetChapterIndex);
+        const chapterTitle = currentChapterMeta.title;
+        const chapterHeading = currentChapterMeta.heading;
+        const chapterImgSrc = currentChapterMeta.image;
+        const textPreview = currentChapterMeta.excerpt;
+
         const isActive = previewPhase !== "tucked" && previewPhase !== "zooming";
 
         return (
@@ -1558,6 +1707,8 @@ export default function HomePage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              overflow: "hidden",
+              maxWidth: "100vw",
               backgroundColor: isActive ? "rgba(15, 23, 42, 0.75)" : "rgba(15, 23, 42, 0)",
               backdropFilter: isActive ? "blur(12px)" : "blur(0px)",
               WebkitBackdropFilter: isActive ? "blur(12px)" : "blur(0px)",
@@ -1600,22 +1751,76 @@ export default function HomePage() {
                   >
                     {previewBook.title}
                   </h4>
-                  <p style={{ fontSize: "12px", color: "var(--kb-text-secondary)", marginBottom: "20px" }}>
+                  <p style={{ fontSize: "12px", color: "var(--kb-text-secondary)", marginBottom: "16px" }}>
                     {previewBook.author || t.unknownAuthor}
                   </p>
 
-                  <div className="kb-preview-status-box" style={{ padding: "12px", borderRadius: "12px", backgroundColor: "var(--kb-bg-secondary)", border: "1px solid var(--kb-border-subtle)" }}>
-                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--kb-text-muted)", marginBottom: "4px" }}>
-                      {language === "ID" ? "STATUS MEMBACA" : language === "JP" ? "読書の進捗" : "READING STATUS"}
-                    </p>
-                    <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>
-                      {hasProgress ? t.readProgress(progressPercent) : t.unread}
-                    </p>
-                    {lastReadChapter && (
-                      <p style={{ fontSize: "12px", color: "var(--kb-text-secondary)", marginTop: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {lastReadChapter}
-                      </p>
-                    )}
+                  <div className="kb-preview-status-box" style={{ padding: "14px 16px", borderRadius: "14px", backgroundColor: "var(--kb-bg-secondary)", border: "1px solid var(--kb-border-subtle)", marginBottom: "22px", minHeight: "175px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                        <p style={{ fontSize: "11.5px", fontWeight: 800, color: "var(--kb-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "160px" }}>
+                          {chapterTitle}
+                        </p>
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", backgroundColor: "rgba(99,102,241,0.12)", color: "var(--kb-primary)", flexShrink: 0 }}>
+                          {hasProgress ? `${progressPercent}%` : (language === "ID" ? "Baru" : language === "JP" ? "未読" : "New")}
+                        </span>
+                      </div>
+
+                      {chapterImgSrc ? (
+                        isLandscapeImg ? (
+                          /* Horizontal Landscape Image Layout (Maximized Clean Image) */
+                          <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: "2px" }}>
+                            <img
+                              src={chapterImgSrc}
+                              alt={chapterTitle}
+                              onLoad={(e) => {
+                                const img = e.currentTarget;
+                                if (img.naturalWidth > img.naturalHeight) {
+                                  setIsLandscapeImg(true);
+                                }
+                              }}
+                              style={{
+                                width: "100%",
+                                maxHeight: "135px",
+                                objectFit: "contain",
+                                borderRadius: "8px",
+                                border: "1px solid var(--kb-border-subtle)",
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          /* Vertical Portrait Image Layout (Side-by-Side) */
+                          <div style={{ display: "flex", flexDirection: "row", gap: "12px", alignItems: "flex-start", width: "100%" }}>
+                            <img
+                              src={chapterImgSrc}
+                              alt={chapterTitle}
+                              onLoad={(e) => {
+                                const img = e.currentTarget;
+                                if (img.naturalWidth > img.naturalHeight) {
+                                  setIsLandscapeImg(true);
+                                }
+                              }}
+                              style={{ height: "135px", maxWidth: "85px", width: "auto", borderRadius: "6px", objectFit: "contain", flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                              {textPreview && (
+                                <p style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                                  {textPreview}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          {textPreview && (
+                            <p style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                              {textPreview}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1647,7 +1852,24 @@ export default function HomePage() {
 
               {/* Book A */}
               <div className="kb-preview-book-a">
-                {/* Spine shadow */}
+                {/* 3D Book Spine Wall (Left Edge) */}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: `-${maxThickness}px`,
+                    width: `${maxThickness}px`,
+                    background: "linear-gradient(to right, #0f172a 0%, #334155 45%, #1e293b 100%)",
+                    transformOrigin: "right center",
+                    transform: "rotateY(-90deg)",
+                    borderRadius: "3px 0 0 3px",
+                    boxShadow: "inset -2px 0 6px rgba(0,0,0,0.4)",
+                    zIndex: 4,
+                  }}
+                />
+
+                {/* Spine shadow overlay */}
                 <div
                   style={{
                     position: "absolute",
@@ -1666,33 +1888,260 @@ export default function HomePage() {
                 <div
                   style={{
                     position: "absolute",
-                    inset: 0,
+                    top: "3px",
+                    bottom: "3px",
+                    left: 0,
+                    right: `${rightStackDepth + 2}px`,
                     backgroundColor: "#ffffff",
-                    borderRadius: "0 12px 12px 0",
+                    borderRadius: "0 8px 8px 0",
                     border: "1px solid #e2e8f0",
                     borderLeft: "none",
-                    boxShadow: "5px 5px 25px rgba(0,0,0,0.2)",
+                    boxShadow: getPaperStackShadow(rightStackDepth, "right"),
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    padding: "24px",
+                    justifyContent: "space-between",
+                    padding: "16px 14px",
                     color: "#0f172a",
-                    transform: "rotateY(0deg)",
+                    transform: isOpen ? "rotateY(2deg)" : "rotateY(0deg)",
+                    transformOrigin: "left center",
                     backfaceVisibility: "hidden",
                     zIndex: 1,
+                    overflow: "hidden",
+                    transition: "transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.6s cubic-bezier(0.25, 1, 0.5, 1), right 0.6s ease",
                   }}
                 >
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ width: "24px", height: "3px", backgroundColor: "var(--kb-primary)", margin: "0 auto 16px auto" }} />
-                    <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--kb-primary)", marginBottom: "4px" }}>
-                      {language === "ID" ? "Membaca" : language === "JP" ? "読書中" : "Reading"}
+                  {/* Center Spine Gutter Shadow (Right Page) */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      width: "28px",
+                      background: "linear-gradient(to right, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.06) 40%, transparent 100%)",
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }}
+                  />
+
+                  <div style={{ width: "100%", textAlign: "center" }}>
+                    <div style={{ width: "24px", height: "3px", backgroundColor: "var(--kb-primary)", margin: "0 auto 6px auto" }} />
+                    <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--kb-primary)", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {chapterTitle}
                     </p>
-                    <h4 style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", maxHeight: "60px" }}>
-                      {previewBook.title}
-                    </h4>
+                  </div>
+
+                  {chapterImgSrc ? (
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", gap: "6px", margin: "4px 0" }}>
+                      <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                        <img
+                          src={chapterImgSrc}
+                          alt={chapterTitle}
+                          style={{
+                            width: "100%",
+                            maxHeight: (chapterHeading || textPreview) ? "150px" : "240px",
+                            objectFit: "contain",
+                            borderRadius: "6px",
+                          }}
+                        />
+                      </div>
+
+                      {(chapterHeading || textPreview) && (
+                        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "3px" }}>
+                          {chapterHeading && (
+                            <p style={{ fontSize: "10.5px", fontWeight: 700, color: "#0f172a", lineHeight: 1.3, textAlign: "center" }}>
+                              {chapterHeading}
+                            </p>
+                          )}
+                          {textPreview && (
+                            <p style={{ fontSize: "9.5px", color: "#334155", lineHeight: 1.45, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: chapterHeading ? 3 : 5, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                              {textPreview}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ width: "100%", margin: "4px 0", display: "flex", flexDirection: "column" }}>
+                      {chapterHeading && (
+                        <p style={{ fontSize: "10.5px", fontWeight: 700, color: "#0f172a", lineHeight: 1.35, marginBottom: "4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {chapterHeading}
+                        </p>
+                      )}
+                      {textPreview && (
+                        <p style={{ fontSize: "10.5px", color: "#334155", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: chapterHeading ? 4 : 6, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                          {textPreview}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }}>
+                    <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 600 }}>Kotoba Reader</span>
+                    <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700 }}>
+                      {hasProgress ? `${progressPercent}%` : "1"}
+                    </span>
                   </div>
                 </div>
+
+                {/* Staggered Flipping Pages */}
+                {Array.from({ length: numFlips }).map((_, i) => {
+                  const delay = i * 90;
+                  const isFlipped = previewPhase === "zooming" || previewPhase === "flipping";
+                  
+                  const pageChIndex = Math.max(0, targetChapterIndex - numFlips + i);
+                  const pageMeta = getChapterMeta(previewChapters[pageChIndex], pageChIndex);
+
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        position: "absolute",
+                        top: "3px",
+                        bottom: "3px",
+                        left: 0,
+                        right: `${rightStackDepth + 2}px`,
+                        backgroundColor: "#ffffff",
+                        borderRadius: "0 8px 8px 0",
+                        border: "1px solid #e2e8f0",
+                        borderLeft: "none",
+                        transformOrigin: "left center",
+                        transform: isFlipped ? "rotateY(-178deg)" : "rotateY(2deg)",
+                        transition: "transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.6s cubic-bezier(0.25, 1, 0.5, 1)",
+                        transitionDelay: `${delay}ms`,
+                        transformStyle: "preserve-3d",
+                        backfaceVisibility: "hidden",
+                        WebkitBackfaceVisibility: "hidden",
+                        zIndex: 3 + i,
+                        boxShadow: isFlipped 
+                          ? getPaperStackShadow(leftStackDepth, "left")
+                          : "3px 3px 10px rgba(0,0,0,0.08)",
+                        padding: "14px 12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        overflow: "hidden",
+                        color: "#0f172a",
+                      }}
+                    >
+                      {/* Front side of page i */}
+                      <div style={{ width: "100%", textAlign: "center" }}>
+                        <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", color: "var(--kb-primary)", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {pageMeta.title}
+                        </p>
+                      </div>
+
+                      {pageMeta.image ? (
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", gap: "4px", margin: "2px 0" }}>
+                          <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                            <img
+                              src={pageMeta.image}
+                              alt={pageMeta.title}
+                              style={{
+                                width: "100%",
+                                maxHeight: (pageMeta.heading || pageMeta.excerpt) ? "130px" : "210px",
+                                objectFit: "contain",
+                                borderRadius: "4px",
+                              }}
+                            />
+                          </div>
+                          {(pageMeta.heading || pageMeta.excerpt) && (
+                            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "2px" }}>
+                              {pageMeta.heading && (
+                                <p style={{ fontSize: "9.5px", fontWeight: 700, color: "#0f172a", lineHeight: 1.25, textAlign: "center" }}>
+                                  {pageMeta.heading}
+                                </p>
+                              )}
+                              {pageMeta.excerpt && (
+                                <p style={{ fontSize: "9px", color: "#334155", lineHeight: 1.4, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: pageMeta.heading ? 2 : 4, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                                  {pageMeta.excerpt}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ width: "100%", margin: "2px 0", display: "flex", flexDirection: "column", gap: "3px" }}>
+                          {pageMeta.heading && (
+                            <p style={{ fontSize: "10px", fontWeight: 700, color: "#0f172a", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                              {pageMeta.heading}
+                            </p>
+                          )}
+                          {pageMeta.excerpt && (
+                            <p style={{ fontSize: "10px", color: "#334155", lineHeight: 1.45, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: pageMeta.heading ? 3 : 5, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                              {pageMeta.excerpt}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div style={{ width: "100%", display: "flex", justifyContent: "space-between", fontSize: "8px", color: "#94a3b8" }}>
+                        <span>Kotoba</span>
+                        <span>{pageChIndex + 1}</span>
+                      </div>
+
+                      {/* Backside of page i */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          backgroundColor: "#ffffff",
+                          borderRadius: "8px 0 0 8px",
+                          border: "1px solid #e2e8f0",
+                          borderRight: "none",
+                          transform: "rotateY(180deg)",
+                          backfaceVisibility: "hidden",
+                          WebkitBackfaceVisibility: "hidden",
+                          zIndex: 1,
+                          boxShadow: getPaperStackShadow(leftStackDepth, "left"),
+                          padding: "14px 12px",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          overflow: "hidden",
+                          color: "#0f172a",
+                        }}
+                      >
+                        <div style={{ width: "100%", textAlign: "center" }}>
+                          <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", color: "var(--kb-primary)", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {pageMeta.title}
+                          </p>
+                        </div>
+
+                        {pageMeta.heading && (
+                          <p style={{ fontSize: "9.5px", fontWeight: 700, color: "#0f172a", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {pageMeta.heading}
+                          </p>
+                        )}
+
+                        {pageMeta.excerpt && (
+                          <p style={{ fontSize: "9.5px", color: "#475569", lineHeight: 1.4, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: pageMeta.heading ? 3 : 5, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                            {pageMeta.excerpt}
+                          </p>
+                        )}
+
+                        <div style={{ width: "100%", display: "flex", justifyContent: "space-between", fontSize: "8px", color: "#94a3b8" }}>
+                          <span>Kotoba</span>
+                          <span>{pageChIndex + 1}</span>
+                        </div>
+
+                        {/* Center Spine Gutter Shadow (Left Page Backside) */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            right: 0,
+                            width: "28px",
+                            background: "linear-gradient(to left, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.06) 40%, transparent 100%)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
 
                 {/* Left Page cover folder */}
                 <div
@@ -1701,12 +2150,12 @@ export default function HomePage() {
                     inset: 0,
                     transformOrigin: "left center",
                     transform: 
-                      previewPhase === "opening" || previewPhase === "zooming"
-                        ? "rotateY(-180deg)"
+                      previewPhase === "opening" || previewPhase === "zooming" || previewPhase === "flipping"
+                        ? "rotateY(-178deg)"
                         : "rotateY(0deg)",
                     transition: "transform 1.0s cubic-bezier(0.25, 1, 0.5, 1)",
                     transformStyle: "preserve-3d",
-                    zIndex: 5,
+                    zIndex: (previewPhase === "opening" || previewPhase === "flipping" || previewPhase === "zooming") ? 2 : 20,
                   }}
                 >
                   {/* Cover front side */}
@@ -1719,8 +2168,10 @@ export default function HomePage() {
                       WebkitBackfaceVisibility: "hidden",
                       borderRadius: "0 12px 12px 0",
                       overflow: "hidden",
-                      boxShadow: "10px 10px 30px rgba(0,0,0,0.3)",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: "14px 14px 35px rgba(0,0,0,0.4), inset -3px 0 6px rgba(0,0,0,0.25)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRight: "3px solid rgba(0,0,0,0.3)",
+                      borderBottom: "2px solid rgba(0,0,0,0.2)",
                       zIndex: 2,
                     }}
                   >
@@ -1758,18 +2209,36 @@ export default function HomePage() {
                   <div
                     style={{
                       position: "absolute",
-                      inset: 0,
-                      backgroundColor: "#fafafa",
-                      borderRadius: "12px 0 0 12px",
+                      top: "3px",
+                      bottom: "3px",
+                      left: 0,
+                      right: `${leftStackDepth + 2}px`,
+                      backgroundColor: "#ffffff",
+                      borderRadius: "8px 0 0 8px",
                       border: "1px solid #e2e8f0",
                       borderRight: "none",
                       transform: "rotateY(180deg)",
                       backfaceVisibility: "hidden",
                       WebkitBackfaceVisibility: "hidden",
                       zIndex: 1,
-                      boxShadow: "-10px 10px 30px rgba(0,0,0,0.2)",
+                      boxShadow: getPaperStackShadow(leftStackDepth, "left"),
+                      transition: "box-shadow 0.6s cubic-bezier(0.25, 1, 0.5, 1), right 0.6s ease",
+                      overflow: "hidden",
                     }}
-                  />
+                  >
+                    {/* Center Spine Gutter Shadow (Left Page) */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        width: "28px",
+                        background: "linear-gradient(to left, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.06) 40%, transparent 100%)",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
