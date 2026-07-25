@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kotoba Reader AI — Japanese Novel Reader",
+  title: "Kotori — Japanese Light Novel & EPUB Reader",
   description:
-    "The all-in-one AI-powered Japanese reading platform. Upload EPUB novels and read with built-in dictionary, grammar analysis, and AI explanations.",
+    "The all-in-one Japanese reading platform. Upload EPUB novels and read with built-in dictionary, grammar analysis, and instant lookup.",
   keywords: [
     "Japanese",
     "novel",
@@ -36,6 +36,8 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
+        <link rel="icon" href="/icon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
       </head>
       <body className="min-h-screen antialiased">
         <DictionaryPrewarmer />

@@ -10,7 +10,7 @@ const FOOTER_TRANSLATIONS = {
     privacyText: "Privasi 100% (Penyimpanan Lokal IndexedDB)",
     verticalText: "Support Teks Vertikal (縦書き) & Audio TTS",
     techTitle: "TEKNOLOGI",
-    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. Hak Cipta Dilindungi.`,
+    copyright: `© ${new Date().getFullYear()} Kotori. Hak Cipta Dilindungi.`,
     createdBy: "Dibuat oleh",
     forLearners: "untuk Pembaca Light Novel & Pelajar Bahasa Jepang.",
   },
@@ -20,7 +20,7 @@ const FOOTER_TRANSLATIONS = {
     privacyText: "100% Privacy (IndexedDB Local Storage)",
     verticalText: "Vertical Text (縦書き) & TTS Audio Support",
     techTitle: "TECHNOLOGY",
-    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. All Rights Reserved.`,
+    copyright: `© ${new Date().getFullYear()} Kotori. All Rights Reserved.`,
     createdBy: "Created by",
     forLearners: "for Light Novel Readers & Japanese Learners.",
   },
@@ -30,7 +30,7 @@ const FOOTER_TRANSLATIONS = {
     privacyText: "100% プライバシー保護（IndexedDBローカル保存）",
     verticalText: "縦書き表示＆TTS音声朗読対応",
     techTitle: "使用技術",
-    copyright: `© ${new Date().getFullYear()} Kotoba Reader AI. 全著作権所有。`,
+    copyright: `© ${new Date().getFullYear()} Kotori. 全著作権所有。`,
     createdBy: "作成者：",
     forLearners: "ライトノベル読者＆日本語学習者のために。",
   },
@@ -74,19 +74,16 @@ export function Footer({ language = "ID" }: FooterProps) {
           {/* Brand & Tagline */}
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <div
+              <img
+                src="/icon.png"
+                alt="Kotori"
                 style={{
-                  width: "34px",
-                  height: "34px",
-                  borderRadius: "10px",
-                  backgroundColor: "var(--kb-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  width: "32px",
+                  height: "32px",
+                  objectFit: "contain",
+                  flexShrink: 0,
                 }}
-              >
-                <BookOpen style={{ width: "18px", height: "18px", color: "#ffffff" }} />
-              </div>
+              />
               <span
                 style={{
                   fontSize: "19px",
@@ -95,7 +92,7 @@ export function Footer({ language = "ID" }: FooterProps) {
                   color: "var(--kb-text)",
                 }}
               >
-                Kotoba Reader AI
+                Kotori
               </span>
             </div>
             <p
