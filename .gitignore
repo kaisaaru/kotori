@@ -5,3 +5,6 @@ out/
 .env*.local
 reference/kotoba-rumus/*素材*.zip
 dict-cache-v1.json
+next-env.d.ts
+.agent/
+agent/

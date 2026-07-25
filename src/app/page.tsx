@@ -214,6 +214,7 @@ export default function HomePage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMenuAnimating, setIsMenuAnimating] = useState(false);
+  const [isIntroAnimating, setIsIntroAnimating] = useState(true);
   const [previewBook, setPreviewBook] = useState<BookMeta | null>(null);
   const [previewChapter, setPreviewChapter] = useState<Chapter | null>(null);
   const [previewChapters, setPreviewChapters] = useState<Chapter[]>([]);
@@ -600,11 +601,89 @@ export default function HomePage() {
         color: "var(--kb-text)",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* ===== Loading / Intro Spinner ===== */}
+      {isLoading && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "var(--kb-bg)",
+            transition: "opacity 0.5s ease, visibility 0.5s ease",
+            opacity: isIntroAnimating ? 1 : 0,
+            visibility: isIntroAnimating ? "visible" : "hidden",
+          }}
+          onAnimationEnd={() => {
+            // After intro animation completes, fade out loader
+            setIsIntroAnimating(false);
+            setTimeout(() => {
+              // Keep loader visible but hidden until isLoading becomes false
+            }, 500);
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: "120px",
+              height: "120px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* Outer rotating ring */}
+            <div
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                borderRadius: "50%",
+                border: "4px solid rgba(99,102,241,0.2)",
+                borderTopColor: "var(--kb-primary)",
+                animation: "spin 1.5s linear infinite",
+              }}
+            />
+            {/* Inner icon */}
+            <img
+              src="/icon.png"
+              alt="Loading"
+              style={{
+                width: "60px",
+                height: "60px",
+                objectFit: "contain",
+                animation: "pulse 2s ease-in-out infinite",
+                position: "relative",
+                zIndex: 2,
+              }}
+            />
+          </div>
+          
+          {/* Loading text */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: "-40px",
+              color: "var(--kb-text-secondary)",
+              fontSize: "14px",
+              fontWeight: 500,
+              animation: "fadeIn 0.5s ease 0.3s forwards",
+              opacity: 0,
+            }}
+          >
+            {language === "ID" ? "Memuat..." : language === "JP" ? "読み込んでいます..." : "Loading..."}
+          </div>
+        </div>
+      )}
+
       {/* ===== Header ===== */}
       <header
         style={{
