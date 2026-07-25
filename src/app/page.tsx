@@ -491,16 +491,54 @@ export default function HomePage() {
     }, 400);
   };
 
+  const isEpubDragEvent = (e: React.DragEvent) => {
+    if (!e.dataTransfer || !e.dataTransfer.items) return false;
+    const items = Array.from(e.dataTransfer.items);
+    if (items.length === 0) return false;
+    return items.some((item) => {
+      if (item.kind !== "file") return false;
+      const type = item.type.toLowerCase();
+      // Explicitly ignore images, videos, audio, pdf, text
+      if (
+        type.startsWith("image/") ||
+        type.startsWith("video/") ||
+        type.startsWith("audio/") ||
+        type === "text/plain" ||
+        type === "application/pdf"
+      ) {
+        return false;
+      }
+      if (type === "application/epub+zip" || type.includes("epub")) {
+        return true;
+      }
+      return type === "";
+    });
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(true);
+    if (isEpubDragEvent(e)) {
+      setIsDragOver(true);
+    } else {
+      setIsDragOver(false);
+    }
   };
-  const handleDragLeave = () => setIsDragOver(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.relatedTarget || (e.relatedTarget as HTMLElement).nodeName === "HTML") {
+      setIsDragOver(false);
+    }
+  };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files.length > 0) {
-      handleUpload(e.dataTransfer.files);
+      const files = Array.from(e.dataTransfer.files);
+      const epubFiles = files.filter(
+        (f) => f.name.toLowerCase().endsWith(".epub") || f.type === "application/epub+zip"
+      );
+      if (epubFiles.length > 0) {
+        handleUpload(epubFiles);
+      }
     }
   };
 
@@ -630,24 +668,19 @@ export default function HomePage() {
             }}
             onClick={() => router.push("/")}
           >
-            <div
+            <img
+              src="/icon.png"
+              alt="Kotori"
               style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "12px",
-                backgroundColor: "var(--kb-primary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                boxShadow: "0 2px 8px rgba(99,102,241,0.25)",
+                width: "36px",
+                height: "36px",
+                objectFit: "contain",
+                flexShrink: 0,
               }}
-            >
-              <BookOpen style={{ width: "20px", height: "20px" }} />
-            </div>
+            />
             <div>
               <h1 style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-                Kotoba Reader
+                Kotori
               </h1>
               <p className="kb-logo-subtitle" style={{ fontSize: "12px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "1px" }}>
                 {t.subtitle}
@@ -907,22 +940,18 @@ export default function HomePage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div
+                <img
+                  src="/icon.png"
+                  alt="Kotori"
                   style={{
-                    width: "34px",
-                    height: "34px",
-                    borderRadius: "10px",
-                    backgroundColor: "var(--kb-primary)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "white",
+                    width: "32px",
+                    height: "32px",
+                    objectFit: "contain",
+                    flexShrink: 0,
                   }}
-                >
-                  <BookOpen style={{ width: "18px", height: "18px" }} />
-                </div>
+                />
                 <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--kb-text)" }}>
-                  Kotoba Reader
+                  Kotori
                 </span>
               </div>
 
@@ -1804,7 +1833,7 @@ export default function HomePage() {
                             />
                             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                               {textPreview && (
-                                <p style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                                <p className="kb-preview-excerpt-text" style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
                                   {textPreview}
                                 </p>
                               )}
@@ -1814,7 +1843,7 @@ export default function HomePage() {
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column" }}>
                           {textPreview && (
-                            <p style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
+                            <p className="kb-preview-excerpt-text" style={{ fontSize: "11px", color: "var(--kb-text-secondary)", lineHeight: 1.5, textAlign: "justify", display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden", fontFamily: "serif" }}>
                               {textPreview}
                             </p>
                           )}
@@ -1978,7 +2007,7 @@ export default function HomePage() {
                   )}
 
                   <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: "4px", marginTop: "2px" }}>
-                    <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 600 }}>Kotoba Reader</span>
+                    <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 600 }}>Kotori</span>
                     <span style={{ fontSize: "9px", color: "#94a3b8", fontWeight: 700 }}>
                       {hasProgress ? `${progressPercent}%` : "1"}
                     </span>
@@ -2077,7 +2106,7 @@ export default function HomePage() {
                       )}
 
                       <div style={{ width: "100%", display: "flex", justifyContent: "space-between", fontSize: "8px", color: "#94a3b8" }}>
-                        <span>Kotoba</span>
+                        <span>Kotori</span>
                         <span>{pageChIndex + 1}</span>
                       </div>
 
@@ -2122,7 +2151,7 @@ export default function HomePage() {
                         )}
 
                         <div style={{ width: "100%", display: "flex", justifyContent: "space-between", fontSize: "8px", color: "#94a3b8" }}>
-                          <span>Kotoba</span>
+                          <span>Kotori</span>
                           <span>{pageChIndex + 1}</span>
                         </div>
 
