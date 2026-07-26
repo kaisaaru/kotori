@@ -76,6 +76,19 @@ const TRANSLATIONS = {
     resetConfirmTitle: "Reset Kemajuan Membaca",
     resetConfirmDesc: (title: string) => `Apakah Anda yakin ingin me-reset kemajuan membaca untuk novel "${title}"? Semua progres membaca Anda akan diulang dari awal.`,
     bookDeleted: (title: string) => `Novel "${title}" berhasil dihapus.`,
+    feedbackBtn: "Saran & Kritik",
+    feedbackTitle: "Saran & Kritik untuk Kotori",
+    feedbackDesc: "Kotori dibuat untuk mempermudah membaca & belajar bahasa Jepang. Bagikan ide fitur baru, lapor bug, atau berikan apresiasi kepada developer!",
+    catBug: "🐞 Lapor Bug / Error",
+    catIdea: "💡 Ide Fitur Baru",
+    catLove: "❤️ Apresiasi / Lainnya",
+    msgPlaceholder: "Tuliskan saran, kritik, atau detail masalah yang Anda temukan di sini...",
+    contactPlaceholder: "Opsional: IG / TikTok (@ka1sai) atau email Anda jika ingin dibalas",
+    sendBtn: "Kirim Pesan",
+    sendingBtn: "Mengirim...",
+    feedbackSuccess: "Terima kasih! Saran & kritik Anda telah terkirim kepada developer.",
+    communityTitle: "Bergabung dengan Komunitas & Kreator",
+    communityDesc: "Kotori dikembangkan dengan ❤️ untuk para pecinta novel Jepang. Sapa developer atau ikuti pembaruannya di media sosial:",
   },
   EN: {
     subtitle: "Japanese Novel Reader",
@@ -115,6 +128,19 @@ const TRANSLATIONS = {
     resetConfirmTitle: "Reset Reading Progress",
     resetConfirmDesc: (title: string) => `Are you sure you want to reset the reading progress for the novel "${title}"? Your progress will start over from the beginning.`,
     bookDeleted: (title: string) => `Novel "${title}" was successfully deleted.`,
+    feedbackBtn: "Feedback",
+    feedbackTitle: "Feedback & Suggestions",
+    feedbackDesc: "Kotori is built to make reading & learning Japanese easier. Share feature ideas, report bugs, or send appreciation to the developer!",
+    catBug: "🐞 Report a Bug",
+    catIdea: "💡 Feature Idea",
+    catLove: "❤️ Appreciation / Other",
+    msgPlaceholder: "Write your feedback, suggestions, or details about any bug you encountered...",
+    contactPlaceholder: "Optional: Your IG / TikTok (@ka1sai) or email if you'd like a reply",
+    sendBtn: "Send Feedback",
+    sendingBtn: "Sending...",
+    feedbackSuccess: "Thank you! Your feedback has been sent to the developer.",
+    communityTitle: "Connect with Creator & Community",
+    communityDesc: "Kotori is built with ❤️ for Japanese novel readers. Say hi to the developer or follow updates on social media:",
   },
   JP: {
     subtitle: "日本語小説リーダー",
@@ -154,6 +180,19 @@ const TRANSLATIONS = {
     resetConfirmTitle: "読書進捗のリセット",
     resetConfirmDesc: (title: string) => `小説「${title}」の読書進捗をリセットしてもよろしいですか？すべての進捗が最初からやり直しになります。`,
     bookDeleted: (title: string) => `小説「${title}」が削除されました。`,
+    feedbackBtn: "ご意見・ご要望",
+    feedbackTitle: "Kotori へのご意見・ご要望",
+    feedbackDesc: "Kotori は日本語の読書や学習を快適にするために作られました。機能追加のアイデア、バグ報告、開発者への応援メッセージなどをお寄せください！",
+    catBug: "🐞 バグ・不具合報告",
+    catIdea: "💡 新機能のアイデア",
+    catLove: "❤️ 応援・その他",
+    msgPlaceholder: "ご意見、ご要望、または見つけたバグの詳細をここに入力してください...",
+    contactPlaceholder: "任意：返信希望の場合は IG/TikTok (@ka1sai) またはメールアドレス",
+    sendBtn: "送信する",
+    sendingBtn: "送信中...",
+    feedbackSuccess: "ありがとうございます！ご意見・ご要望は開発者に送信されました。",
+    communityTitle: "クリエイター＆コミュニティと繋がる",
+    communityDesc: "Kotori は日本語小説の読者のために ❤️ を込めて開発されています。SNSで開発者に挨拶したり、最新情報をチェックしましょう：",
   },
 };
 
@@ -227,6 +266,13 @@ export default function HomePage() {
   const [previewChapters, setPreviewChapters] = useState<Chapter[]>([]);
   const [previewPhase, setPreviewPhase] = useState<"none" | "idle" | "tucked" | "tucking" | "centering" | "opening" | "flipping" | "zooming">("none");
   const [isLandscapeImg, setIsLandscapeImg] = useState(false);
+
+  // Feedback modal state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState<"idea" | "bug" | "love">("idea");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackContact, setFeedbackContact] = useState("");
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   useEffect(() => {
     setIsLandscapeImg(false);
@@ -550,6 +596,38 @@ export default function HomePage() {
     }
   };
 
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim()) return;
+    setIsSendingFeedback(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: feedbackCategory,
+          message: feedbackMessage,
+          contact: feedbackContact,
+          language,
+        }),
+      });
+
+      if (res.ok) {
+        showToast(t.feedbackSuccess, "success");
+        setFeedbackMessage("");
+        setFeedbackContact("");
+        setShowFeedbackModal(false);
+      } else {
+        const data = await res.json();
+        showToast(data.error || "Gagal mengirim feedback", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Terjadi kesalahan sistem saat mengirim feedback", "error");
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
+
   const filteredBooks = books.filter(
     (b) =>
       b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -818,6 +896,37 @@ export default function HomePage() {
               flexShrink: 0,
             }}
           >
+            {/* Feedback Button */}
+            <button
+              onClick={() => setShowFeedbackModal(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                fontSize: "13px",
+                fontWeight: 700,
+                borderRadius: "12px",
+                backgroundColor: "var(--kb-primary-light)",
+                color: "var(--kb-primary)",
+                border: "1px solid rgba(99,102,241,0.2)",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--kb-primary)";
+                e.currentTarget.style.color = "#ffffff";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--kb-primary-light)";
+                e.currentTarget.style.color = "var(--kb-primary)";
+              }}
+              title={t.feedbackBtn}
+            >
+              <Sparkles style={{ width: "15px", height: "15px" }} />
+              <span>{t.feedbackBtn}</span>
+            </button>
+
             {/* Language Switcher (ID / EN / JP) */}
             <div
               className="kb-lang-switcher"
@@ -1574,12 +1683,271 @@ export default function HomePage() {
             </p>
           </div>
         )}
-      </main>
+              </main>
 
-      {/* Footer */}
-      <Footer language={language} />
+              {/* ===== Community & Creator Banner ===== */}
+              <section
+                style={{
+                  maxWidth: "1320px",
+                  margin: "0 auto 0",
+                  padding: "0 32px 48px",
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: "20px",
+                    padding: "32px",
+                    background: "linear-gradient(135deg, var(--kb-primary-light) 0%, var(--kb-surface) 100%)",
+                    border: "1px solid var(--kb-border-subtle)",
+                    textAlign: "center",
+                  }}
+                >
+                  <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)" }}>
+                    {t.communityTitle}
+                  </h3>
+                  <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "24px", maxWidth: "520px", margin: "0 auto 24px" }}>
+                    {t.communityDesc}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+                    {/* Feedback Button */}
+                    <button
+                      onClick={() => setShowFeedbackModal(true)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        borderRadius: "12px",
+                        backgroundColor: "var(--kb-primary)",
+                        color: "#ffffff",
+                        border: "none",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 14px rgba(99,102,241,0.3)",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(99,102,241,0.3)"; }}
+                    >
+                      <Sparkles style={{ width: "15px", height: "15px" }} />
+                      {t.feedbackBtn}
+                    </button>
 
-      {/* Delete Confirmation Modal */}
+                    {/* Instagram */}
+                    <a
+                      href="https://instagram.com/ka1sai"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        borderRadius: "12px",
+                        backgroundColor: "var(--kb-surface)",
+                        color: "var(--kb-text)",
+                        border: "1px solid var(--kb-border)",
+                        textDecoration: "none",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "#E4405F"; e.currentTarget.style.color = "#E4405F"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--kb-border)"; e.currentTarget.style.color = "var(--kb-text)"; }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                      @ka1sai
+                    </a>
+
+                    {/* TikTok */}
+                    <a
+                      href="https://tiktok.com/@ka1sai"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 20px",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        borderRadius: "12px",
+                        backgroundColor: "var(--kb-surface)",
+                        color: "var(--kb-text)",
+                        border: "1px solid var(--kb-border)",
+                        textDecoration: "none",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "#000000"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--kb-border)"; }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.7a8.16 8.16 0 0 0 4.76 1.51v-3.45c0-.01-1-0.07-1-0.07z"/></svg>
+                      @ka1sai
+                    </a>
+                  </div>
+                </div>
+              </section>
+
+              {/* Footer */}
+              <Footer language={language} />
+
+              {/* ===== Feedback Modal ===== */}
+              {showFeedbackModal && (
+                <div
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: 300,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "16px",
+                    backgroundColor: "var(--kb-overlay)",
+                    backdropFilter: "blur(6px)",
+                  }}
+                  onClick={() => setShowFeedbackModal(false)}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      maxWidth: "480px",
+                      borderRadius: "20px",
+                      backgroundColor: "var(--kb-surface)",
+                      border: "1px solid var(--kb-border)",
+                      boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+                      padding: "32px",
+                      position: "relative",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Close button */}
+                    <button
+                      onClick={() => setShowFeedbackModal(false)}
+                      style={{
+                        position: "absolute",
+                        top: "16px",
+                        right: "16px",
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "10px",
+                        border: "none",
+                        backgroundColor: "var(--kb-bg-secondary)",
+                        color: "var(--kb-text-secondary)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <X style={{ width: "16px", height: "16px" }} />
+                    </button>
+
+                    {/* Title */}
+                    <h2 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)", paddingRight: "40px" }}>
+                      {t.feedbackTitle}
+                    </h2>
+                    <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "24px" }}>
+                      {t.feedbackDesc}
+                    </p>
+
+                    {/* Category selector */}
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+                      {(["idea", "bug", "love"] as const).map((cat) => {
+                        const label = cat === "bug" ? t.catBug : cat === "idea" ? t.catIdea : t.catLove;
+                        const isActive = feedbackCategory === cat;
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() => setFeedbackCategory(cat)}
+                            style={{
+                              padding: "8px 14px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              borderRadius: "10px",
+                              border: isActive ? "2px solid var(--kb-primary)" : "1px solid var(--kb-border)",
+                              backgroundColor: isActive ? "var(--kb-primary-light)" : "var(--kb-bg-secondary)",
+                              color: isActive ? "var(--kb-primary)" : "var(--kb-text-secondary)",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Message textarea */}
+                    <textarea
+                      value={feedbackMessage}
+                      onChange={(e) => setFeedbackMessage(e.target.value)}
+                      placeholder={t.msgPlaceholder}
+                      style={{
+                        width: "100%",
+                        minHeight: "120px",
+                        padding: "14px 16px",
+                        fontSize: "14px",
+                        lineHeight: 1.6,
+                        borderRadius: "14px",
+                        border: "1px solid var(--kb-border)",
+                        backgroundColor: "var(--kb-bg)",
+                        color: "var(--kb-text)",
+                        outline: "none",
+                        resize: "vertical",
+                        fontFamily: "inherit",
+                        marginBottom: "12px",
+                      }}
+                    />
+
+                    {/* Contact input */}
+                    <input
+                      type="text"
+                      value={feedbackContact}
+                      onChange={(e) => setFeedbackContact(e.target.value)}
+                      placeholder={t.contactPlaceholder}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        fontSize: "13px",
+                        borderRadius: "12px",
+                        border: "1px solid var(--kb-border)",
+                        backgroundColor: "var(--kb-bg)",
+                        color: "var(--kb-text)",
+                        outline: "none",
+                        marginBottom: "20px",
+                        fontFamily: "inherit",
+                      }}
+                    />
+
+                    {/* Send button */}
+                    <button
+                      onClick={handleSendFeedback}
+                      disabled={isSendingFeedback || !feedbackMessage.trim()}
+                      style={{
+                        width: "100%",
+                        padding: "14px",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        borderRadius: "14px",
+                        border: "none",
+                        backgroundColor: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-bg-secondary)" : "var(--kb-primary)",
+                        color: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-text-muted)" : "#ffffff",
+                        cursor: isSendingFeedback || !feedbackMessage.trim() ? "not-allowed" : "pointer",
+                        boxShadow: isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.35)",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      {isSendingFeedback ? t.sendingBtn : t.sendBtn}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Delete Confirmation Modal */}
       {deleteConfirm && (() => {
         const book = books.find((b) => b.id === deleteConfirm);
         const displayTitle = book ? truncate(book.title, 45) : "";
