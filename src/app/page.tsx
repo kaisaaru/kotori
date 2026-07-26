@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   RotateCcw,
   LayoutGrid,
+  Sparkles,
 } from "lucide-react";
 import { parseEpub } from "@/services/epub-parser";
 import {
@@ -46,6 +47,8 @@ const TRANSLATIONS = {
     libraryTitle: "Perpustakaan Buku",
     noBooksYet: "Belum Ada Buku",
     noBooksDesc: "Unggah file EPUB novel Jepang Anda untuk mulai membaca.",
+    noBooksHintEmpty: "Bingung mencari file novel EPUB? Anda dapat mencari dan mengunduhnya di ",
+    noBooksHintList: "Cari EPUB lainnya di ",
     readNow: "Baca Sekarang",
     continueReading: "Lanjutkan Membaca",
     deleteConfirmTitle: "Hapus Novel",
@@ -83,6 +86,8 @@ const TRANSLATIONS = {
     libraryTitle: "Book Library",
     noBooksYet: "No Books Found",
     noBooksDesc: "Upload your Japanese novel EPUB file to start reading.",
+    noBooksHintEmpty: "Confused about finding EPUB novel files? You can search and download them on ",
+    noBooksHintList: "Search for more EPUBs on ",
     readNow: "Read Now",
     continueReading: "Continue Reading",
     deleteConfirmTitle: "Delete Novel",
@@ -120,6 +125,8 @@ const TRANSLATIONS = {
     libraryTitle: "ライブラリ",
     noBooksYet: "本がありません",
     noBooksDesc: "EPUBファイルをアップロードして読書を開始しましょう。",
+    noBooksHintEmpty: "EPUB小説ファイルをお探しですか？ 以下のサイトで検索・ダウンロードできます： ",
+    noBooksHintList: "他のEPUBを探す： ",
     readNow: "読む",
     continueReading: "続きを読む",
     deleteConfirmTitle: "小説を削除",
@@ -1380,8 +1387,25 @@ export default function HomePage() {
             <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "8px" }}>
               {t.noBooksYet}
             </h2>
-            <p style={{ fontSize: "14px", color: "var(--kb-text-secondary)", maxWidth: "400px", lineHeight: 1.6, marginBottom: "24px" }}>
+            <p style={{ fontSize: "14px", color: "var(--kb-text-secondary)", maxWidth: "420px", lineHeight: 1.6, marginBottom: "8px" }}>
               {t.noBooksDesc}
+            </p>
+            <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", maxWidth: "440px", lineHeight: 1.6, marginBottom: "24px" }}>
+              <span>{t.noBooksHintEmpty}</span>
+              <a
+                href="https://en.zlib.bz"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  color: "var(--kb-primary)",
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                }}
+              >
+                en.zlib.bz
+              </a>
             </p>
             <button
               style={{
@@ -1419,8 +1443,24 @@ export default function HomePage() {
                 <h2 style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.01em" }}>
                   {searchQuery ? (language === "ID" ? "Hasil Pencarian" : language === "JP" ? "検索結果" : "Search Results") : t.libraryTitle}
                 </h2>
-                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "2px" }}>
-                  {filteredBooks.length} {language === "ID" ? "novel tersedia" : language === "JP" ? "冊の小説" : filteredBooks.length === 1 ? "novel available" : "novels available"}
+                <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "2px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px" }}>
+                  <span>{filteredBooks.length} {language === "ID" ? "novel tersedia" : language === "JP" ? "冊の小説" : filteredBooks.length === 1 ? "novel available" : "novels available"}</span>
+                  <span style={{ margin: "0 4px", opacity: 0.4 }}>•</span>
+                  <Sparkles style={{ width: "13px", height: "13px", color: "var(--kb-primary)", display: "inline-block" }} />
+                  <span style={{ color: "var(--kb-text-secondary)", fontWeight: 400 }}>{t.noBooksHintList}</span>
+                  <a
+                    href="https://en.zlib.bz"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "var(--kb-primary)",
+                      fontWeight: 600,
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    en.zlib.bz
+                  </a>
                 </p>
               </div>
             </div>
