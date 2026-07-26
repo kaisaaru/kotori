@@ -22,6 +22,10 @@ import {
   RotateCcw,
   LayoutGrid,
   Sparkles,
+  Heart,
+  ShieldAlert,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 import { parseEpub } from "@/services/epub-parser";
 import {
@@ -36,6 +40,31 @@ import {
 import { formatFileSize, truncate } from "@/lib/utils";
 import type { BookMeta, ReadingProgress, Chapter } from "@/types/book";
 import { Footer } from "@/components/Footer";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
+
+/* ===== Scroll Reveal Wrapper ===== */
+function RevealSection({
+  children,
+  className = "kb-reveal",
+  style,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  delay?: number;
+}) {
+  const [ref, isVisible] = useScrollReveal();
+  return (
+    <div
+      ref={ref}
+      className={`${className} ${isVisible ? "kb-visible" : ""}`}
+      style={{ ...style, transitionDelay: delay ? `${delay}ms` : undefined }}
+    >
+      {children}
+    </div>
+  );
+}
 
 const TRANSLATIONS = {
   ID: {
@@ -79,16 +108,16 @@ const TRANSLATIONS = {
     feedbackBtn: "Saran & Kritik",
     feedbackTitle: "Saran & Kritik untuk Kotori",
     feedbackDesc: "Kotori dibuat untuk mempermudah membaca & belajar bahasa Jepang. Bagikan ide fitur baru, lapor bug, atau berikan apresiasi kepada developer!",
-    catBug: "🐞 Lapor Bug / Error",
-    catIdea: "💡 Ide Fitur Baru",
-    catLove: "❤️ Apresiasi / Lainnya",
+    catBug: "Lapor Bug / Error",
+    catIdea: "Ide Fitur Baru",
+    catLove: "Apresiasi / Lainnya",
     msgPlaceholder: "Tuliskan saran, kritik, atau detail masalah yang Anda temukan di sini...",
-    contactPlaceholder: "Opsional: IG / TikTok (@ka1sai) atau email Anda jika ingin dibalas",
+    contactPlaceholder: "Opsional: IG / TikTok atau email Anda jika ingin dibalas",
     sendBtn: "Kirim Pesan",
     sendingBtn: "Mengirim...",
     feedbackSuccess: "Terima kasih! Saran & kritik Anda telah terkirim kepada developer.",
-    communityTitle: "Bergabung dengan Komunitas & Kreator",
-    communityDesc: "Kotori dikembangkan dengan ❤️ untuk para pecinta novel Jepang. Sapa developer atau ikuti pembaruannya di media sosial:",
+    communityTitle: "Dukung Kotori",
+    communityDesc: "Punya ide fitur baru, menemukan bug, atau sekadar ingin menyapa? Jangan ragu untuk mengirimkan saran Anda.",
   },
   EN: {
     subtitle: "Japanese Novel Reader",
@@ -131,16 +160,16 @@ const TRANSLATIONS = {
     feedbackBtn: "Feedback",
     feedbackTitle: "Feedback & Suggestions",
     feedbackDesc: "Kotori is built to make reading & learning Japanese easier. Share feature ideas, report bugs, or send appreciation to the developer!",
-    catBug: "🐞 Report a Bug",
-    catIdea: "💡 Feature Idea",
-    catLove: "❤️ Appreciation / Other",
+    catBug: "Report a Bug",
+    catIdea: "Feature Idea",
+    catLove: "Appreciation / Other",
     msgPlaceholder: "Write your feedback, suggestions, or details about any bug you encountered...",
-    contactPlaceholder: "Optional: Your IG / TikTok (@ka1sai) or email if you'd like a reply",
+    contactPlaceholder: "Optional: Your IG / TikTok or email if you'd like a reply",
     sendBtn: "Send Feedback",
     sendingBtn: "Sending...",
     feedbackSuccess: "Thank you! Your feedback has been sent to the developer.",
-    communityTitle: "Connect with Creator & Community",
-    communityDesc: "Kotori is built with ❤️ for Japanese novel readers. Say hi to the developer or follow updates on social media:",
+    communityTitle: "Support Kotori",
+    communityDesc: "Have a feature idea, found a bug, or just want to say hi? Feel free to drop a message.",
   },
   JP: {
     subtitle: "日本語小説リーダー",
@@ -183,16 +212,16 @@ const TRANSLATIONS = {
     feedbackBtn: "ご意見・ご要望",
     feedbackTitle: "Kotori へのご意見・ご要望",
     feedbackDesc: "Kotori は日本語の読書や学習を快適にするために作られました。機能追加のアイデア、バグ報告、開発者への応援メッセージなどをお寄せください！",
-    catBug: "🐞 バグ・不具合報告",
-    catIdea: "💡 新機能のアイデア",
-    catLove: "❤️ 応援・その他",
+    catBug: "バグ・不具合報告",
+    catIdea: "新機能のアイデア",
+    catLove: "応援・その他",
     msgPlaceholder: "ご意見、ご要望、または見つけたバグの詳細をここに入力してください...",
-    contactPlaceholder: "任意：返信希望の場合は IG/TikTok (@ka1sai) またはメールアドレス",
+    contactPlaceholder: "任意：返信希望の場合は IG/TikTok またはメールアドレス",
     sendBtn: "送信する",
     sendingBtn: "送信中...",
     feedbackSuccess: "ありがとうございます！ご意見・ご要望は開発者に送信されました。",
-    communityTitle: "クリエイター＆コミュニティと繋がる",
-    communityDesc: "Kotori は日本語小説の読者のために ❤️ を込めて開発されています。SNSで開発者に挨拶したり、最新情報をチェックしましょう：",
+    communityTitle: "Kotori をサポート",
+    communityDesc: "新機能のアイデア、バグの発見、または単に挨拶したいだけでも大歓迎です。お気軽にメッセージをお送りください。",
   },
 };
 
@@ -1458,6 +1487,7 @@ export default function HomePage() {
 
         {/* Empty State (No Books Uploaded Yet) */}
         {!isLoading && books.length === 0 && (
+          <RevealSection className="kb-reveal-up">
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1535,11 +1565,13 @@ export default function HomePage() {
               <span>{t.addBook}</span>
             </button>
           </div>
+          </RevealSection>
         )}
 
         {/* Book Grid Area */}
         {!isLoading && books.length > 0 && filteredBooks.length > 0 && (
           <>
+            <RevealSection>
             <div
               style={{
                 marginBottom: "28px",
@@ -1573,13 +1605,15 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
+            </RevealSection>
 
             {groupedShelves ? (
               /* Bookshelf View */
               <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
                 {/* Visual Series Shelves */}
-                {groupedShelves.shelves.map((shelf) => (
-                  <div key={shelf.seriesName} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {groupedShelves.shelves.map((shelf, shelfIdx) => (
+                  <RevealSection key={shelf.seriesName} className="kb-reveal-left" delay={shelfIdx * 100}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingLeft: "4px" }}>
                       <h3 style={{ fontSize: "18px", fontWeight: 800, color: "var(--kb-text)" }}>
                         {shelf.seriesName}
@@ -1635,6 +1669,7 @@ export default function HomePage() {
                       />
                     </div>
                   </div>
+                  </RevealSection>
                 ))}
               </div>
             ) : (
@@ -1648,9 +1683,9 @@ export default function HomePage() {
                   alignItems: "start",
                 }}
               >
-                {sortedFilteredBooks.map((book) => (
+                {sortedFilteredBooks.map((book, bookIdx) => (
+                  <RevealSection key={book.id} className="kb-reveal-scale" delay={bookIdx * 60}>
                   <BookCard
-                    key={book.id}
                     book={book}
                     progress={progresses[book.id]}
                     onOpen={() => handleBookClick(book)}
@@ -1658,6 +1693,7 @@ export default function HomePage() {
                     onResetProgress={() => setResetConfirm(book.id)}
                     t={t}
                   />
+                  </RevealSection>
                 ))}
               </div>
             )}
@@ -1685,7 +1721,8 @@ export default function HomePage() {
         )}
               </main>
 
-              {/* ===== Community & Creator Banner ===== */}
+      {/* ===== Community & Creator Banner ===== */}
+      <RevealSection className="kb-reveal-up" style={{ width: "100%" }}>
               <section
                 style={{
                   maxWidth: "1320px",
@@ -1696,20 +1733,49 @@ export default function HomePage() {
               >
                 <div
                   style={{
-                    borderRadius: "20px",
-                    padding: "32px",
-                    background: "linear-gradient(135deg, var(--kb-primary-light) 0%, var(--kb-surface) 100%)",
-                    border: "1px solid var(--kb-border-subtle)",
+                    borderRadius: "24px",
+                    padding: "40px 32px",
+                    background: "linear-gradient(135deg, var(--kb-surface) 0%, rgba(99, 102, 241, 0.03) 100%)",
+                    border: "1px solid rgba(99, 102, 241, 0.12)",
                     textAlign: "center",
+                    position: "relative",
+                    overflow: "hidden",
+                    boxShadow: "0 10px 30px -10px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5)",
                   }}
                 >
-                  <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)" }}>
+                  {/* Decorative background icon */}
+                  <Sparkles 
+                    style={{ 
+                      position: "absolute", 
+                      right: "-20px", 
+                      top: "-20px", 
+                      width: "120px", 
+                      height: "120px", 
+                      color: "var(--kb-primary)", 
+                      opacity: 0.03,
+                      pointerEvents: "none"
+                    }} 
+                  />
+                  <Sparkles 
+                    style={{ 
+                      position: "absolute", 
+                      left: "-20px", 
+                      bottom: "-20px", 
+                      width: "100px", 
+                      height: "100px", 
+                      color: "var(--kb-primary)", 
+                      opacity: 0.02,
+                      pointerEvents: "none"
+                    }} 
+                  />
+
+                  <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "10px", color: "var(--kb-text)", letterSpacing: "-0.02em" }}>
                     {t.communityTitle}
                   </h3>
-                  <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "24px", maxWidth: "520px", margin: "0 auto 24px" }}>
+                  <p style={{ fontSize: "13.5px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "28px", maxWidth: "560px", margin: "0 auto 28px" }}>
                     {t.communityDesc}
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", flexWrap: "wrap", position: "relative", zIndex: 1 }}>
                     {/* Feedback Button */}
                     <button
                       onClick={() => setShowFeedbackModal(true)}
@@ -1717,25 +1783,31 @@ export default function HomePage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "10px 20px",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        borderRadius: "12px",
+                        padding: "12px 24px",
+                        fontSize: "13.5px",
+                        fontWeight: 750,
+                        borderRadius: "14px",
                         backgroundColor: "var(--kb-primary)",
                         color: "#ffffff",
                         border: "none",
                         cursor: "pointer",
-                        boxShadow: "0 4px 14px rgba(99,102,241,0.3)",
-                        transition: "all 0.2s ease",
+                        boxShadow: "0 6px 20px -4px rgba(99,102,241,0.4)",
+                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(99,102,241,0.3)"; }}
+                      onMouseEnter={(e) => { 
+                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
+                        e.currentTarget.style.boxShadow = "0 10px 25px -4px rgba(99,102,241,0.5)"; 
+                      }}
+                      onMouseLeave={(e) => { 
+                        e.currentTarget.style.transform = "none"; 
+                        e.currentTarget.style.boxShadow = "0 6px 20px -4px rgba(99,102,241,0.4)"; 
+                      }}
                     >
-                      <Sparkles style={{ width: "15px", height: "15px" }} />
+                      <MessageSquare style={{ width: "16px", height: "16px" }} />
                       {t.feedbackBtn}
                     </button>
 
-                    {/* Instagram */}
+                    {/* Social Media Links (Temporarily Commented Out)
                     <a
                       href="https://instagram.com/ka1sai"
                       target="_blank"
@@ -1744,25 +1816,34 @@ export default function HomePage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "10px 20px",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-surface)",
+                        padding: "12px 24px",
+                        fontSize: "13.5px",
+                        fontWeight: 750,
+                        borderRadius: "14px",
+                        backgroundColor: "var(--kb-bg-secondary)",
                         color: "var(--kb-text)",
                         border: "1px solid var(--kb-border)",
                         textDecoration: "none",
                         cursor: "pointer",
-                        transition: "all 0.2s ease",
+                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "#E4405F"; e.currentTarget.style.color = "#E4405F"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--kb-border)"; e.currentTarget.style.color = "var(--kb-text)"; }}
+                      onMouseEnter={(e) => { 
+                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
+                        e.currentTarget.style.borderColor = "#E4405F"; 
+                        e.currentTarget.style.color = "#E4405F"; 
+                        e.currentTarget.style.backgroundColor = "rgba(228, 64, 95, 0.04)";
+                      }}
+                      onMouseLeave={(e) => { 
+                        e.currentTarget.style.transform = "none"; 
+                        e.currentTarget.style.borderColor = "var(--kb-border)"; 
+                        e.currentTarget.style.color = "var(--kb-text)"; 
+                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
+                      }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                      @ka1sai
+                      Instagram
                     </a>
 
-                    {/* TikTok */}
                     <a
                       href="https://tiktok.com/@ka1sai"
                       target="_blank"
@@ -1771,67 +1852,59 @@ export default function HomePage() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "10px 20px",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-surface)",
+                        padding: "12px 24px",
+                        fontSize: "13.5px",
+                        fontWeight: 750,
+                        borderRadius: "14px",
+                        backgroundColor: "var(--kb-bg-secondary)",
                         color: "var(--kb-text)",
                         border: "1px solid var(--kb-border)",
                         textDecoration: "none",
                         cursor: "pointer",
-                        transition: "all 0.2s ease",
+                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.borderColor = "#000000"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--kb-border)"; }}
+                      onMouseEnter={(e) => { 
+                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
+                        e.currentTarget.style.borderColor = "var(--kb-text)"; 
+                        e.currentTarget.style.backgroundColor = "var(--kb-border)";
+                      }}
+                      onMouseLeave={(e) => { 
+                        e.currentTarget.style.transform = "none"; 
+                        e.currentTarget.style.borderColor = "var(--kb-border)"; 
+                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
+                      }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.7a8.16 8.16 0 0 0 4.76 1.51v-3.45c0-.01-1-0.07-1-0.07z"/></svg>
-                      @ka1sai
+                      TikTok
                     </a>
+                    */}
                   </div>
                 </div>
               </section>
+      </RevealSection>
 
               {/* Footer */}
-              <Footer language={language} />
+              <RevealSection className="kb-reveal-up" delay={150} style={{ width: "100%" }}>
+                <Footer language={language} />
+              </RevealSection>
 
               {/* ===== Feedback Modal ===== */}
-              {showFeedbackModal && (
+              <div
+                className={`kb-feedback-overlay ${showFeedbackModal ? "kb-modal-active" : ""}`}
+                onClick={() => setShowFeedbackModal(false)}
+              >
                 <div
-                  style={{
-                    position: "fixed",
-                    inset: 0,
-                    zIndex: 300,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "16px",
-                    backgroundColor: "var(--kb-overlay)",
-                    backdropFilter: "blur(6px)",
-                  }}
-                  onClick={() => setShowFeedbackModal(false)}
+                  className="kb-feedback-content"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <div
+                  {/* Close button */}
+                  <button
+                    onClick={() => setShowFeedbackModal(false)}
                     style={{
-                      width: "100%",
-                      maxWidth: "480px",
-                      borderRadius: "20px",
-                      backgroundColor: "var(--kb-surface)",
-                      border: "1px solid var(--kb-border)",
-                      boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-                      padding: "32px",
-                      position: "relative",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Close button */}
-                    <button
-                      onClick={() => setShowFeedbackModal(false)}
-                      style={{
-                        position: "absolute",
-                        top: "16px",
-                        right: "16px",
-                        width: "32px",
+                      position: "absolute",
+                      top: "18px",
+                      right: "18px",
+                      width: "32px",
                         height: "32px",
                         borderRadius: "10px",
                         border: "none",
@@ -1841,13 +1914,24 @@ export default function HomePage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "var(--kb-border)";
+                        e.currentTarget.style.color = "var(--kb-text)";
+                        e.currentTarget.style.transform = "rotate(90deg)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
+                        e.currentTarget.style.color = "var(--kb-text-secondary)";
+                        e.currentTarget.style.transform = "none";
                       }}
                     >
                       <X style={{ width: "16px", height: "16px" }} />
                     </button>
 
                     {/* Title */}
-                    <h2 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)", paddingRight: "40px" }}>
+                    <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)", paddingRight: "40px", letterSpacing: "-0.02em" }}>
                       {t.feedbackTitle}
                     </h2>
                     <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "24px" }}>
@@ -1855,27 +1939,50 @@ export default function HomePage() {
                     </p>
 
                     {/* Category selector */}
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+                    <div 
+                      style={{ 
+                        display: "flex", 
+                        padding: "4px",
+                        backgroundColor: "var(--kb-bg-secondary)",
+                        borderRadius: "14px",
+                        border: "1px solid var(--kb-border)",
+                        gap: "2px", 
+                        marginBottom: "20px" 
+                      }}
+                    >
                       {(["idea", "bug", "love"] as const).map((cat) => {
                         const label = cat === "bug" ? t.catBug : cat === "idea" ? t.catIdea : t.catLove;
                         const isActive = feedbackCategory === cat;
+                        
+                        // Icon selection based on category
+                        let CategoryIcon = Sparkles;
+                        if (cat === "bug") CategoryIcon = ShieldAlert;
+                        if (cat === "love") CategoryIcon = Heart;
+
                         return (
                           <button
                             key={cat}
                             onClick={() => setFeedbackCategory(cat)}
                             style={{
-                              padding: "8px 14px",
+                              flex: 1,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: "6px",
+                              padding: "8px 12px",
                               fontSize: "12px",
-                              fontWeight: 700,
+                              fontWeight: 750,
                               borderRadius: "10px",
-                              border: isActive ? "2px solid var(--kb-primary)" : "1px solid var(--kb-border)",
-                              backgroundColor: isActive ? "var(--kb-primary-light)" : "var(--kb-bg-secondary)",
+                              border: "none",
+                              backgroundColor: isActive ? "var(--kb-surface)" : "transparent",
                               color: isActive ? "var(--kb-primary)" : "var(--kb-text-secondary)",
+                              boxShadow: isActive ? "0 2px 8px rgba(99,102,241,0.08), 0 1px 2px rgba(0,0,0,0.02)" : "none",
                               cursor: "pointer",
-                              transition: "all 0.15s ease",
+                              transition: "all 0.2s ease",
                             }}
                           >
-                            {label}
+                            <CategoryIcon style={{ width: "13px", height: "13px", color: isActive ? "var(--kb-primary)" : "inherit" }} />
+                            <span>{label}</span>
                           </button>
                         );
                       })}
@@ -1886,20 +1993,20 @@ export default function HomePage() {
                       value={feedbackMessage}
                       onChange={(e) => setFeedbackMessage(e.target.value)}
                       placeholder={t.msgPlaceholder}
+                      className="kb-premium-input"
                       style={{
                         width: "100%",
-                        minHeight: "120px",
+                        minHeight: "130px",
                         padding: "14px 16px",
-                        fontSize: "14px",
+                        fontSize: "13.5px",
                         lineHeight: 1.6,
                         borderRadius: "14px",
-                        border: "1px solid var(--kb-border)",
                         backgroundColor: "var(--kb-bg)",
                         color: "var(--kb-text)",
                         outline: "none",
-                        resize: "vertical",
+                        resize: "none",
                         fontFamily: "inherit",
-                        marginBottom: "12px",
+                        marginBottom: "14px",
                       }}
                     />
 
@@ -1909,16 +2016,16 @@ export default function HomePage() {
                       value={feedbackContact}
                       onChange={(e) => setFeedbackContact(e.target.value)}
                       placeholder={t.contactPlaceholder}
+                      className="kb-premium-input"
                       style={{
                         width: "100%",
                         padding: "12px 16px",
                         fontSize: "13px",
                         borderRadius: "12px",
-                        border: "1px solid var(--kb-border)",
                         backgroundColor: "var(--kb-bg)",
                         color: "var(--kb-text)",
                         outline: "none",
-                        marginBottom: "20px",
+                        marginBottom: "24px",
                         fontFamily: "inherit",
                       }}
                     />
@@ -1931,21 +2038,35 @@ export default function HomePage() {
                         width: "100%",
                         padding: "14px",
                         fontSize: "14px",
-                        fontWeight: 700,
+                        fontWeight: 750,
                         borderRadius: "14px",
                         border: "none",
                         backgroundColor: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-bg-secondary)" : "var(--kb-primary)",
                         color: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-text-muted)" : "#ffffff",
                         cursor: isSendingFeedback || !feedbackMessage.trim() ? "not-allowed" : "pointer",
-                        boxShadow: isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.35)",
-                        transition: "all 0.2s ease",
+                        boxShadow: isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.3)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "8px",
+                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSendingFeedback && feedbackMessage.trim()) {
+                          e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "none";
+                        e.currentTarget.style.boxShadow = isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.3)";
                       }}
                     >
-                      {isSendingFeedback ? t.sendingBtn : t.sendBtn}
+                      <Send style={{ width: "14px", height: "14px" }} />
+                      <span>{isSendingFeedback ? t.sendingBtn : t.sendBtn}</span>
                     </button>
                   </div>
                 </div>
-              )}
 
               {/* Delete Confirmation Modal */}
       {deleteConfirm && (() => {
