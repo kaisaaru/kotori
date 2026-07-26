@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
+import { getBaseForms } from "@/lib/japanese/deinflector";
 
 interface ServerTerm {
   dictName: string;
@@ -13,6 +14,7 @@ interface ServerTerm {
   score?: number;
   pitch?: string;
   jlpt?: string;
+  deinflectionRules?: string[];
 }
 
 interface ServerKanji {
@@ -769,11 +771,23 @@ export async function GET(request: Request) {
   const termPositionMap = new Map<ServerTerm, number>();
 
   // Direct Match
-  const direct = termMap.get(cleanQuery);
-  if (direct && direct.length > 0) {
-    for (const d of direct) {
-      matchedTerms.push(d);
-      termPositionMap.set(d, 0);
+  const baseForms = getBaseForms(cleanQuery);
+  const processedWords = new Set<string>();
+
+  for (const bf of baseForms) {
+    if (processedWords.has(bf.word)) continue;
+    processedWords.add(bf.word);
+
+    const direct = termMap.get(bf.word);
+    if (direct && direct.length > 0) {
+      for (const d of direct) {
+        const clonedTerm = { ...d };
+        if (bf.rules && bf.rules.length > 0) {
+          clonedTerm.deinflectionRules = bf.rules;
+        }
+        matchedTerms.push(clonedTerm);
+        termPositionMap.set(clonedTerm, 0);
+      }
     }
   }
 

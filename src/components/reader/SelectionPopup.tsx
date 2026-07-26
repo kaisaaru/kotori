@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Volume2, BookOpen, Layers, Type, Sparkles } from "lucide-react";
+import { X, Volume2, BookOpen, Layers, Type, Sparkles, Puzzle } from "lucide-react";
 import { dictionaryService, LookupResult } from "@/services/dictionary-service";
 import { useReaderStore } from "@/stores/reader-store";
 
@@ -620,6 +620,25 @@ export function SelectionPopup({ selectedText, explicitFurigana, position, onClo
                               </span>
                             );
                           })()}
+                          {term.deinflectionRules && term.deinflectionRules.length > 0 && (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                backgroundColor: "rgba(168, 85, 247, 0.15)",
+                                color: "#c084fc",
+                                border: "1px solid rgba(168, 85, 247, 0.3)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <Puzzle size={10} />
+                              {term.deinflectionRules[0]}
+                            </span>
+                          )}
                           <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "6px", backgroundColor: "rgba(56, 189, 248, 0.15)", color: "#38bdf8" }}>
                             {term.dictName}
                           </span>

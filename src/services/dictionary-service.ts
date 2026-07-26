@@ -11,6 +11,7 @@ export interface DictDefinition {
   pitch?: string;
   frequency?: number;
   jlpt?: string;
+  deinflectionRules?: string[];
 }
 
 export interface KanjiDetail {

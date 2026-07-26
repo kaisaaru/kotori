@@ -28,6 +28,7 @@ import { MARGIN_VALUES, READER_WIDTH_VALUES } from "@/types/book";
 import ReaderSettingsPanel from "@/components/reader/ReaderSettingsPanel";
 import TableOfContents from "@/components/reader/TableOfContents";
 import { SelectionPopup } from "@/components/reader/SelectionPopup";
+import { getTextNodeAtPoint, extractContextChunk } from "@/lib/japanese/pointer-tokenizer";
 
 // Helper to extract clean base text and explicit furigana from a selection container
 function extractTextAndFurigana(container: HTMLElement, range?: Range | null, selection?: Selection | null) {
@@ -444,8 +445,52 @@ export default function ReaderPage() {
     });
   }, [settings.writingMode]);
 
-  // Reset scroll and clear active selection popup whenever chapter index or writing mode changes
+  // Yomitan-like Hover/Tap Scanner
   useEffect(() => {
+      const el = contentRef.current;
+      if (!el || !isLoaded || isSettingsOpen || isTocOpen || !(settings.enableDictionary ?? true)) return;
+
+      let scanTimeout: NodeJS.Timeout;
+
+      const handleScan = (e: MouseEvent | TouchEvent, x: number, y: number) => {
+        clearTimeout(scanTimeout);
+        const isShiftHeld = (e as MouseEvent).shiftKey === true;
+        const isTouch = e.type === "touchstart";
+        const isShiftMode = settings.dictTrigger === "shift";
+
+        // Determine if we should scan based on user settings
+        const shouldScan = isTouch || (isShiftMode ? isShiftHeld : true);
+
+        if (shouldScan) {
+          scanTimeout = setTimeout(() => {
+            const pointerData = getTextNodeAtPoint(x, y);
+            if (pointerData) {
+              const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
+              if (chunk) {
+                setSelectionState({
+                  text: chunk, // We pass a 15-char chunk; API's Word Segmentation will figure out the exact word length
+                  position: { x, y }
+                });
+              }
+            }
+          }, isTouch ? 50 : 20); // aggressive debounce for instant feel
+        }
+      };
+
+      const onMouseMove = (e: MouseEvent) => handleScan(e, e.clientX, e.clientY);
+      const onTouchStart = (e: TouchEvent) => handleScan(e, e.touches[0].clientX, e.touches[0].clientY);
+
+      el.addEventListener("mousemove", onMouseMove);
+      el.addEventListener("touchstart", onTouchStart, { passive: true });
+      return () => {
+        el.removeEventListener("mousemove", onMouseMove);
+        el.removeEventListener("touchstart", onTouchStart);
+        clearTimeout(scanTimeout);
+      };
+  }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger]);
+
+  // Reset scroll and clear active selection popup whenever chapter index or writing mode changes
+      useEffect(() => {
     if (isLoaded) {
       resetScrollPosition();
       setSelectionState(null);

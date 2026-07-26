@@ -561,13 +561,57 @@ export default function ReaderSettingsPanel({
                     left: dictStatus?.isReady && (settings.enableDictionary ?? true) ? "25px" : "3px",
                     transition: "left 0.2s ease",
                     boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                  }}
-                />
-              </button>
-            </div>
-          </SettingSection>
+                    }}
+                    />
+                    </button>
+                    </div>
 
-          {/* Yomitan Dictionary Manager Section */}
+                    {/* Dictionary Trigger Mode */}
+                    {(settings.enableDictionary ?? true) && dictStatus?.isReady && (
+                    <div className="kb-settings-group" style={{ marginTop: "16px", padding: "0 12px" }}>
+                    <div className="kb-settings-label" style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>Mode Pemicu Kamus (Dictionary Trigger)</span>
+                    </div>
+                    <div style={{ display: "flex", background: "var(--kb-bg-secondary)", borderRadius: "8px", padding: "4px" }}>
+                    <button
+                    className="kb-settings-btn"
+                    style={{ 
+                      flex: 1, 
+                      background: settings.dictTrigger === "hover" || !settings.dictTrigger ? "var(--kb-surface)" : "transparent",
+                      border: settings.dictTrigger === "hover" || !settings.dictTrigger ? "1px solid var(--kb-border)" : "1px solid transparent",
+                      color: settings.dictTrigger === "hover" || !settings.dictTrigger ? "var(--kb-text)" : "var(--kb-text-secondary)",
+                      boxShadow: settings.dictTrigger === "hover" || !settings.dictTrigger ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                      fontWeight: settings.dictTrigger === "hover" || !settings.dictTrigger ? 700 : 500,
+                    }}
+                    onClick={() => onSettingsChange({ dictTrigger: "hover" })}
+                    >
+                    Langsung
+                    </button>
+                    <button
+                    className="kb-settings-btn"
+                    style={{ 
+                      flex: 1, 
+                      background: settings.dictTrigger === "shift" ? "var(--kb-surface)" : "transparent",
+                      border: settings.dictTrigger === "shift" ? "1px solid var(--kb-border)" : "1px solid transparent",
+                      color: settings.dictTrigger === "shift" ? "var(--kb-text)" : "var(--kb-text-secondary)",
+                      boxShadow: settings.dictTrigger === "shift" ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                      fontWeight: settings.dictTrigger === "shift" ? 700 : 500,
+                    }}
+                    onClick={() => onSettingsChange({ dictTrigger: "shift" })}
+                    >
+                    Tahan Shift
+                    </button>
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "8px", lineHeight: 1.4 }}>
+                    {settings.dictTrigger === "shift" 
+                    ? "Kamus hanya muncul jika Anda menahan tombol Shift sambil mengarahkan kursor ke teks."
+                    : "Kamus langsung muncul saat kursor diarahkan ke teks (atau disentuh di HP)."}
+                    </div>
+                    </div>
+                    )}
+                    </SettingSection>
+
+                    {/* Yomitan Dictionary Manager Section */}
           <SettingSection label="Kelola Kamus Kustom / Custom Dictionaries">
             <div
               style={{
