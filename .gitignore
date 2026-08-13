@@ -8,3 +8,4 @@ dict-cache-v1.json
 next-env.d.ts
 .agent/
 agent/
+.hermes/
