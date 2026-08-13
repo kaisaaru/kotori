@@ -38,7 +38,7 @@ export interface ReaderSettings {
   readerWidth: "narrow" | "medium" | "wide" | "full";
   ttsSpeed: number;
   enableDictionary?: boolean;
-  dictTrigger?: "hover" | "shift";
+  dictTrigger?: "hover" | "shift" | "click";
 }
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
@@ -52,7 +52,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   readerWidth: "medium",
   ttsSpeed: 1,
   enableDictionary: true,
-  dictTrigger: "hover",
+  dictTrigger: "click",
 };
 
 export const FONT_FAMILIES = [

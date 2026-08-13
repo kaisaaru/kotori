@@ -568,44 +568,70 @@ export default function ReaderSettingsPanel({
 
                     {/* Dictionary Trigger Mode */}
                     {(settings.enableDictionary ?? true) && dictStatus?.isReady && (
-                    <div className="kb-settings-group" style={{ marginTop: "16px", padding: "0 12px" }}>
-                    <div className="kb-settings-label" style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>Mode Pemicu Kamus (Dictionary Trigger)</span>
+                    <div className="kb-settings-group" style={{ marginTop: "16px" }}>
+                    <div className="kb-settings-label" style={{ marginBottom: "10px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        color: "var(--kb-text-muted)",
+                      }}
+                    >
+                      Mode Pemicu Kamus (Dictionary Trigger)
+                    </span>
                     </div>
-                    <div style={{ display: "flex", background: "var(--kb-bg-secondary)", borderRadius: "8px", padding: "4px" }}>
-                    <button
-                    className="kb-settings-btn"
-                    style={{ 
-                      flex: 1, 
-                      background: settings.dictTrigger === "hover" || !settings.dictTrigger ? "var(--kb-surface)" : "transparent",
-                      border: settings.dictTrigger === "hover" || !settings.dictTrigger ? "1px solid var(--kb-border)" : "1px solid transparent",
-                      color: settings.dictTrigger === "hover" || !settings.dictTrigger ? "var(--kb-text)" : "var(--kb-text-secondary)",
-                      boxShadow: settings.dictTrigger === "hover" || !settings.dictTrigger ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
-                      fontWeight: settings.dictTrigger === "hover" || !settings.dictTrigger ? 700 : 500,
-                    }}
-                    onClick={() => onSettingsChange({ dictTrigger: "hover" })}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "4px",
+                        borderRadius: "14px",
+                        padding: "4px",
+                        backgroundColor: "var(--kb-bg-secondary)",
+                        border: "1px solid var(--kb-border-subtle)",
+                      }}
                     >
-                    Langsung
-                    </button>
-                    <button
-                    className="kb-settings-btn"
-                    style={{ 
-                      flex: 1, 
-                      background: settings.dictTrigger === "shift" ? "var(--kb-surface)" : "transparent",
-                      border: settings.dictTrigger === "shift" ? "1px solid var(--kb-border)" : "1px solid transparent",
-                      color: settings.dictTrigger === "shift" ? "var(--kb-text)" : "var(--kb-text-secondary)",
-                      boxShadow: settings.dictTrigger === "shift" ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
-                      fontWeight: settings.dictTrigger === "shift" ? 700 : 500,
-                    }}
-                    onClick={() => onSettingsChange({ dictTrigger: "shift" })}
-                    >
-                    Tahan Shift
-                    </button>
+                    {([
+                      { value: "click" as const, label: "Langsung" },
+                      { value: "hover" as const, label: "Hover Kursor" },
+                      { value: "shift" as const, label: "Tahan Shift" },
+                    ]).map((mode) => {
+                      const isActive = settings.dictTrigger === mode.value || (!settings.dictTrigger && mode.value === "click");
+                      return (
+                        <button
+                          key={mode.value}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            borderRadius: "10px",
+                            padding: "8px 4px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            textAlign: "center",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            backgroundColor: isActive ? "var(--kb-surface)" : "transparent",
+                            color: isActive ? "var(--kb-primary)" : "var(--kb-text-secondary)",
+                            boxShadow: isActive ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
+                            border: isActive ? "1px solid var(--kb-border)" : "1px solid transparent",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                          onClick={() => onSettingsChange({ dictTrigger: mode.value })}
+                        >
+                          {mode.label}
+                        </button>
+                      );
+                    })}
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "8px", lineHeight: 1.4 }}>
-                    {settings.dictTrigger === "shift" 
+                    {settings.dictTrigger === "shift"
                     ? "Kamus hanya muncul jika Anda menahan tombol Shift sambil mengarahkan kursor ke teks."
-                    : "Kamus langsung muncul saat kursor diarahkan ke teks (atau disentuh di HP)."}
+                    : settings.dictTrigger === "hover"
+                    ? "Kamus otomatis muncul begitu kursor diarahkan ke atas kata (mode scan-menerus, tanpa perlu klik)."
+                    : "Klik/ketuk sekali pada kata untuk langsung memunculkan kamus. Klik di area kosong untuk menyembunyikan/menampilkan toolbar."}
                     </div>
                     </div>
                     )}
