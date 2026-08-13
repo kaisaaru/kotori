@@ -35,6 +35,13 @@ export interface LookupResult {
     meanings: string[];
     dictName?: string;
   }[];
+  // Position where `query` begins within the original (possibly padded-chunk) request string -
+  // used to re-locate the resolved word in the DOM for the scanned-word highlight overlay.
+  focusedStart?: number;
+  // Length of the raw surface-form text that matched at focusedStart - can differ from
+  // `terms[0].expression.length` when the match came from deinflection (e.g. surface form
+  // "食べさせられて" vs dictionary headword "食べる"). Used for accurate highlight width.
+  focusedLength?: number;
 }
 
 export interface CustomDictionaryMeta {
@@ -65,27 +72,44 @@ function getDictDB() {
 class DictionaryService {
   // Ultra-lightweight 50-item LRU Cache in Client Memory
   private cache = new Map<string, LookupResult>();
+  // Secondary cache keyed by the resolved primary term's expression, so a repeat tap on the
+  // same word - even via a raw chunk string that differs slightly by cursor offset - can still
+  // hit cache if that exact expression string is looked up again (e.g. a drag-selection of the
+  // bare word, or a re-lookup triggered from within the popup itself).
+  private expressionCache = new Map<string, LookupResult>();
 
   clearMemoryCache() {
     this.cache.clear();
+    this.expressionCache.clear();
   }
 
   /**
-   * Search dictionary via ultra-fast lightweight Server API
+   * Search dictionary via ultra-fast lightweight Server API.
+   * `pos` is the click/hover point's offset within `text`, when `text` is a padded chunk
+   * (not an exact selection) - it tells the server to resolve just the single word under
+   * the cursor instead of every word segmented out of the whole chunk.
    */
-  async lookup(text: string): Promise<LookupResult> {
+  async lookup(text: string, pos?: number): Promise<LookupResult> {
     const cleanText = text.trim().substring(0, 50); // Enforce max 50 characters limit for 60 FPS speed
     if (!cleanText) {
       return { query: "", reading: "", terms: [], kanjiList: [], segmentedWords: [] };
     }
 
+    const cacheKey = pos !== undefined ? `${cleanText}::${pos}` : cleanText;
+
     // Check LRU Cache (0ms instant)
-    if (this.cache.has(cleanText)) {
-      return this.cache.get(cleanText)!;
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    if (this.expressionCache.has(cleanText)) {
+      return this.expressionCache.get(cleanText)!;
     }
 
     try {
-      const res = await fetch(`/api/dictionary/lookup?q=${encodeURIComponent(cleanText)}`);
+      const url = pos !== undefined
+        ? `/api/dictionary/lookup?q=${encodeURIComponent(cleanText)}&pos=${pos}`
+        : `/api/dictionary/lookup?q=${encodeURIComponent(cleanText)}`;
+      const res = await fetch(url);
       const data: LookupResult = await res.json();
 
       // Store in LRU Cache
@@ -93,7 +117,16 @@ class DictionaryService {
         const firstKey = this.cache.keys().next().value;
         if (firstKey) this.cache.delete(firstKey);
       }
-      this.cache.set(cleanText, data);
+      this.cache.set(cacheKey, data);
+
+      const primaryExpression = data.terms[0]?.expression;
+      if (primaryExpression && primaryExpression !== cleanText) {
+        if (this.expressionCache.size >= 50) {
+          const firstKey = this.expressionCache.keys().next().value;
+          if (firstKey) this.expressionCache.delete(firstKey);
+        }
+        this.expressionCache.set(primaryExpression, data);
+      }
 
       return data;
     } catch (err) {
