@@ -28,7 +28,8 @@ import { MARGIN_VALUES, READER_WIDTH_VALUES } from "@/types/book";
 import ReaderSettingsPanel from "@/components/reader/ReaderSettingsPanel";
 import TableOfContents from "@/components/reader/TableOfContents";
 import { SelectionPopup } from "@/components/reader/SelectionPopup";
-import { getTextNodeAtPoint, extractContextChunk } from "@/lib/japanese/pointer-tokenizer";
+import type { LookupResult } from "@/services/dictionary-service";
+import { getTextNodeAtPoint, extractContextChunk, getExplicitFurigana } from "@/lib/japanese/pointer-tokenizer";
 
 // Helper to extract clean base text and explicit furigana from a selection container
 function extractTextAndFurigana(container: HTMLElement, range?: Range | null, selection?: Selection | null) {
@@ -144,6 +145,7 @@ export default function ReaderPage() {
     text: string;
     explicitFurigana?: string;
     position: { x: number; y: number };
+    chunkPos?: number; // click/hover point's offset within `text`, when text is a padded chunk (not an exact selection)
   } | null>(null);
   const [bookmarkOverlay, setBookmarkOverlay] = useState<{
     chapterIndex: number;
@@ -152,9 +154,22 @@ export default function ReaderPage() {
     position: { x: number; y: number };
     rects: Array<{ left: number; top: number; width: number; height: number }>;
   } | null>(null);
+  // Live highlight on the word currently shown in the dictionary popup (Yomitan-style scan highlight)
+  const [scanHighlight, setScanHighlight] = useState<{
+    rects: Array<{ left: number; top: number; width: number; height: number }>;
+  } | null>(null);
   const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
   const [isBookmarked, setIsBookmarked] = useState(false);
   const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Coordination refs for dictionary-lookup vs. toolbar-toggle vs. drag-selection gestures
+  const lastDictLookupAtRef = useRef(0);
+  const isPointerDownRef = useRef(false);
+  const isDraggingRef = useRef(false); // true only once actual movement happens while pointer is down (real drag, not a static tap)
+  const isTouchGestureRef = useRef(false); // distinguishes touch (handled by the tap-scanner) from mouse (handled by click-mode lookup)
+  // Precise reading-position restore (set from saved progress before chapter mounts, consumed once)
+  const pendingScrollRestoreRef = useRef<number | null>(null);
+  const [chapterScrollRatio, setChapterScrollRatio] = useState(0);
 
   // Sync bookmark state when chapter changes
   useEffect(() => {
@@ -175,6 +190,7 @@ export default function ReaderPage() {
 
     const handleScroll = () => {
       setScrollPos({ left: container.scrollLeft, top: container.scrollTop });
+      setChapterScrollRatio(getScrollPosition());
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
@@ -220,7 +236,22 @@ export default function ReaderPage() {
 
   // Detect highlighted/blocked text selection for dictionary popup & persistent bookmark
   useEffect(() => {
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      isPointerDownRef.current = true;
+      isDraggingRef.current = false;
+      isTouchGestureRef.current = e.type.startsWith("touch");
+    };
+
+    const handlePointerMove = () => {
+      if (isPointerDownRef.current) {
+        isDraggingRef.current = true;
+      }
+    };
+
     const handleMouseUp = (e?: MouseEvent | TouchEvent) => {
+      isPointerDownRef.current = false;
+      isDraggingRef.current = false;
+
       // If user disabled Dictionary in Reader Settings, do not show dictionary popups!
       if (settings.enableDictionary === false) {
         return;
@@ -348,9 +379,17 @@ export default function ReaderPage() {
       }
     };
 
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown, { passive: true });
+    document.addEventListener("mousemove", handlePointerMove);
+    document.addEventListener("touchmove", handlePointerMove, { passive: true });
     document.addEventListener("mouseup", handleMouseUp);
     document.addEventListener("touchend", handleMouseUp);
     return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("mousemove", handlePointerMove);
+      document.removeEventListener("touchmove", handlePointerMove);
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleMouseUp);
     };
@@ -372,6 +411,7 @@ export default function ReaderPage() {
       setSettings(savedSettings);
 
       if (progress) {
+        pendingScrollRestoreRef.current = progress.scrollPosition;
         setCurrentChapter(progress.chapterIndex);
       }
 
@@ -445,6 +485,72 @@ export default function ReaderPage() {
     });
   }, [settings.writingMode]);
 
+  // Apply a previously-saved 0-1 scroll ratio (inverse of getScrollPosition) to restore the
+  // exact reading position on load - as opposed to resetScrollPosition, which always jumps to
+  // the chapter start and is used for explicit chapter navigation (next/prev/TOC/links).
+  const applyScrollPosition = useCallback((ratio: number) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = contentRef.current;
+        if (!el) return;
+        if (settings.writingMode === "vertical") {
+          const max = el.scrollWidth - el.clientWidth;
+          el.scrollLeft = max > 0 ? ratio * max : 0;
+        } else {
+          const max = el.scrollHeight - el.clientHeight;
+          el.scrollTop = max > 0 ? ratio * max : 0;
+        }
+      });
+    });
+  }, [settings.writingMode]);
+
+  // Highlight the word currently shown in the dictionary popup (Yomitan-style scan highlight).
+  // Re-locates the resolved word in the DOM from the original click point + the server's
+  // reported focusedStart, mirroring the same rect math used for the bookmark highlight.
+  const onDictResolve = useCallback((res: LookupResult) => {
+    if (!selectionState || selectionState.chunkPos === undefined || !contentRef.current) {
+      setScanHighlight(null);
+      return;
+    }
+    const wordLen = res.focusedLength || res.terms[0]?.expression.length || res.query.length;
+    if (!wordLen) {
+      setScanHighlight(null);
+      return;
+    }
+    const pointerData = getTextNodeAtPoint(selectionState.position.x, selectionState.position.y);
+    if (!pointerData) {
+      setScanHighlight(null);
+      return;
+    }
+    try {
+      const text = pointerData.textNode.textContent || "";
+      const wordStart = pointerData.offset - selectionState.chunkPos + (res.focusedStart ?? 0);
+      const start = Math.max(0, Math.min(text.length, wordStart));
+      const end = Math.max(start, Math.min(text.length, start + wordLen));
+      if (end <= start) {
+        setScanHighlight(null);
+        return;
+      }
+
+      const range = document.createRange();
+      range.setStart(pointerData.textNode, start);
+      range.setEnd(pointerData.textNode, end);
+
+      const contentRect = contentRef.current.getBoundingClientRect();
+      const scrollTop = contentRef.current.scrollTop;
+      const scrollLeft = contentRef.current.scrollLeft;
+      const rects = Array.from(range.getClientRects()).map((r) => ({
+        left: r.left - contentRect.left + scrollLeft,
+        top: r.top - contentRect.top + scrollTop,
+        width: Math.max(r.width, 4),
+        height: Math.max(r.height, 4),
+      }));
+      setScanHighlight(rects.length > 0 ? { rects } : null);
+    } catch {
+      setScanHighlight(null);
+    }
+  }, [selectionState]);
+
   // Yomitan-like Hover/Tap Scanner
   useEffect(() => {
       const el = contentRef.current;
@@ -453,25 +559,39 @@ export default function ReaderPage() {
       let scanTimeout: NodeJS.Timeout;
 
       const handleScan = (e: MouseEvent | TouchEvent, x: number, y: number) => {
+        if (isDraggingRef.current) return; // don't flicker single-word popups while drag-selecting a sentence
         clearTimeout(scanTimeout);
         const isShiftHeld = (e as MouseEvent).shiftKey === true;
         const isTouch = e.type === "touchstart";
         const isShiftMode = settings.dictTrigger === "shift";
+        const isHoverMode = settings.dictTrigger === "hover";
 
-        // Determine if we should scan based on user settings
-        const shouldScan = isTouch || (isShiftMode ? isShiftHeld : true);
+        // Mouse: only continuous-scan in "hover" mode (opt-in) or "shift" mode while Shift is held.
+        // "click" mode (default) handles mouse lookups via handleContentClick instead - no hover scan here.
+        // Touch always scans instantly on tap regardless of mode.
+        const shouldScan = isTouch || isHoverMode || (isShiftMode && isShiftHeld);
 
         if (shouldScan) {
           scanTimeout = setTimeout(() => {
             const pointerData = getTextNodeAtPoint(x, y);
             if (pointerData) {
               const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
-              if (chunk) {
+              if (chunk.text) {
                 setSelectionState({
-                  text: chunk, // We pass a 15-char chunk; API's Word Segmentation will figure out the exact word length
-                  position: { x, y }
+                  text: chunk.text, // We pass a padded chunk; server resolves just the single word at chunkPos
+                  position: { x, y },
+                  chunkPos: chunk.pos,
+                  explicitFurigana: getExplicitFurigana(pointerData.textNode),
                 });
+                lastDictLookupAtRef.current = Date.now();
+                return;
               }
+            }
+            // Hover mode: the cursor is no longer over a resolvable word - live popup follows
+            // the cursor, so dismiss it (unlike click/shift mode, which stay open until dismissed).
+            if (isHoverMode && !isTouch) {
+              setSelectionState(null);
+              setScanHighlight(null);
             }
           }, isTouch ? 50 : 20); // aggressive debounce for instant feel
         }
@@ -489,16 +609,24 @@ export default function ReaderPage() {
       };
   }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger]);
 
-  // Reset scroll and clear active selection popup whenever chapter index or writing mode changes
+  // Reset scroll and clear active selection popup whenever chapter index or writing mode changes.
+  // Exception: if a saved reading position is pending restoration (set on initial load from
+  // saved progress), apply that exact position instead of jumping to the chapter start.
       useEffect(() => {
     if (isLoaded) {
-      resetScrollPosition();
+      if (pendingScrollRestoreRef.current !== null) {
+        applyScrollPosition(pendingScrollRestoreRef.current);
+        pendingScrollRestoreRef.current = null;
+      } else {
+        resetScrollPosition();
+      }
       setSelectionState(null);
+      setScanHighlight(null);
       if (typeof window !== "undefined") {
         window.getSelection()?.removeAllRanges();
       }
     }
-  }, [currentChapterIndex, settings.writingMode, isLoaded, resetScrollPosition]);
+  }, [currentChapterIndex, settings.writingMode, isLoaded, resetScrollPosition, applyScrollPosition]);
 
   const getScrollPosition = (): number => {
     const el = contentRef.current;
@@ -654,9 +782,47 @@ export default function ReaderPage() {
       return;
     }
 
-    // Ignore toolbar toggle if user is selecting text (e.g., highlighting Japanese words)
+    // Click-triggered dictionary lookup (Yomitan-style: click a word, popup appears instantly).
+    // Only for mouse gestures in "click" mode - touch already gets an instant popup from the
+    // tap-scanner effect on touchstart, so re-running it here would double-fetch the same word.
+    const dictEnabled = settings.enableDictionary ?? true;
+    const isClickMode = !settings.dictTrigger || settings.dictTrigger === "click";
+    if (dictEnabled && isClickMode && !isTouchGestureRef.current) {
+      const pointerData = getTextNodeAtPoint(e.clientX, e.clientY);
+      if (pointerData) {
+        const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
+        if (chunk.text) {
+          setSelectionState({
+            text: chunk.text,
+            position: { x: e.clientX, y: e.clientY },
+            chunkPos: chunk.pos,
+            explicitFurigana: getExplicitFurigana(pointerData.textNode),
+          });
+          lastDictLookupAtRef.current = Date.now();
+          return; // word resolved under the click - don't also toggle the toolbar for this tap
+        }
+      }
+    }
+
+    // Ignore this click if user is actively selecting text (e.g., highlighting Japanese words) -
+    // let the drag-selection's own mouseup/touchend handler own this gesture instead.
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 0) {
+      return;
+    }
+
+    // Skip if a dictionary lookup just resolved via the tap-scanner in this SAME gesture
+    // (touch, hover/shift mode) - don't immediately dismiss the popup it just opened.
+    if (Date.now() - lastDictLookupAtRef.current < 250) {
+      return;
+    }
+
+    // Modal-style dismiss: if the dictionary popup is currently open, a click anywhere that
+    // didn't resolve to a word (and isn't a fresh selection) closes it, in every trigger mode -
+    // click on empty page area to close, same as clicking the X button.
+    if (selectionState) {
+      setSelectionState(null);
+      setScanHighlight(null);
       return;
     }
 
@@ -687,7 +853,12 @@ export default function ReaderPage() {
     );
   }
 
-  const progressPercent = Math.round(((currentChapterIndex + 1) / chapters.length) * 100);
+  // chapterScrollRatio follows getScrollPosition()'s raw convention, which is flipped for
+  // vertical-rl text (1 = chapter start, 0 = chapter end); normalize to 0=start/1=end before blending.
+  const inChapterProgress = settings.writingMode === "vertical" ? 1 - chapterScrollRatio : chapterScrollRatio;
+  const progressPercent = chapters.length > 0
+    ? Math.round(((currentChapterIndex + inChapterProgress) / chapters.length) * 100)
+    : 0;
 
   return (
     <div
@@ -1031,6 +1202,7 @@ export default function ReaderPage() {
                           e.stopPropagation();
                           setBookmarkOverlay(null);
                           setSelectionState(null);
+                          setScanHighlight(null);
                           if (typeof window !== "undefined") {
                             window.getSelection()?.removeAllRanges();
                           }
@@ -1074,6 +1246,49 @@ export default function ReaderPage() {
                       </button>
                     )}
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ===== Live Scanned-Word Highlight (Yomitan-style, follows the dictionary popup) ===== */}
+          {scanHighlight && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                pointerEvents: "none",
+                zIndex: 19,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: `${-scrollPos.top}px`,
+                  left: `${-scrollPos.left}px`,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                }}
+              >
+                {scanHighlight.rects.map((r, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      position: "absolute",
+                      left: `${r.left}px`,
+                      top: `${r.top}px`,
+                      width: `${r.width}px`,
+                      height: `${r.height}px`,
+                      backgroundColor: "rgba(56, 189, 248, 0.28)",
+                      borderRadius: "2px",
+                      pointerEvents: "none",
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -1210,7 +1425,9 @@ export default function ReaderPage() {
           selectedText={selectionState.text}
           explicitFurigana={selectionState.explicitFurigana}
           position={selectionState.position}
-          onClose={() => setSelectionState(null)}
+          chunkPos={selectionState.chunkPos}
+          onResolve={onDictResolve}
+          onClose={() => { setSelectionState(null); setScanHighlight(null); }}
         />
       )}
 
