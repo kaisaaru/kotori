@@ -117,6 +117,17 @@ body {
   color: inherit;
 }
 
+/* Colour of the scanned-word highlight. The reader selects the looked-up word via the browser's
+   own text selection (the approach Yomitan uses), so this rule is what paints it - and it also
+   covers the user's own manual drag-selections. */
+.reader-content ::selection {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+.reader-content ::-moz-selection {
+  background: rgba(56, 189, 248, 0.35);
+}
+
 .reader-content.vertical {
   writing-mode: vertical-rl;
   text-orientation: mixed;

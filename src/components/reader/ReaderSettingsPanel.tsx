@@ -17,6 +17,7 @@ import { useEffect, useState, useCallback } from "react";
 import type { ReaderSettings } from "@/types/book";
 import { FONT_FAMILIES } from "@/types/book";
 import { dictionaryService, CustomDictionaryMeta } from "@/services/dictionary-service";
+import { useDictionaryStore } from "@/stores/dictionary-store";
 
 interface ReaderSettingsPanelProps {
   settings: ReaderSettings;
@@ -30,7 +31,11 @@ export default function ReaderSettingsPanel({
   onClose,
 }: ReaderSettingsPanelProps) {
   const [customDicts, setCustomDicts] = useState<CustomDictionaryMeta[]>([]);
-  const [dictStatus, setDictStatus] = useState<{ isReady: boolean; isBuilding: boolean; totalTerms: number; totalKanji: number } | null>(null);
+  // Read from the shared store rather than polling here: this panel is unmounted whenever the
+  // drawer closes, so a local poller restarted from scratch on every reopen and flashed
+  // "Memeriksa Status Kamus..." even when the index had long been ready. DictionaryPrewarmer owns
+  // the poll now.
+  const dictStatus = useDictionaryStore((s) => s.status);
 
   const refreshCustomDicts = useCallback(async () => {
     const list = await dictionaryService.getCustomDictionaries();
@@ -40,29 +45,6 @@ export default function ReaderSettingsPanel({
   useEffect(() => {
     refreshCustomDicts();
   }, [refreshCustomDicts]);
-
-  useEffect(() => {
-    let mounted = true;
-    let timer: NodeJS.Timeout | null = null;
-
-    async function check() {
-      const status = await dictionaryService.getStatus();
-      if (mounted) {
-        setDictStatus(status);
-        if (status.isReady && timer) {
-          clearInterval(timer);
-        }
-      }
-    }
-
-    check();
-    timer = setInterval(check, 4000);
-
-    return () => {
-      mounted = false;
-      if (timer) clearInterval(timer);
-    };
-  }, []);
 
   const handleDeleteDict = async (name: string) => {
     await dictionaryService.deleteCustomDictionary(name);
