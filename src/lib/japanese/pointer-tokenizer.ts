@@ -75,6 +75,26 @@ export function getExplicitFurigana(textNode: Text): string | undefined {
   return text || undefined;
 }
 
+// Bounding rect of the single character at `offset` within `textNode` - used to anchor the
+// dictionary popup's position instead of the raw click/tap pixel. A character's rect is constant
+// regardless of exactly where within its glyph the pointer landed, so anchoring to it (rather
+// than to the click coordinates themselves) eliminates jitter: clicking the same character at
+// its edge vs. its middle vs. its start now always yields the same popup position.
+export function getCharRect(textNode: Text, offset: number): { x: number; y: number; width: number; height: number } | null {
+  const text = textNode.textContent || "";
+  if (offset < 0 || offset >= text.length) return null;
+  try {
+    const range = document.createRange();
+    range.setStart(textNode, offset);
+    range.setEnd(textNode, offset + 1);
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return null;
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+  } catch {
+    return null;
+  }
+}
+
 export function extractContextChunk(textNode: Text, offset: number, maxRadius: number = 20): { text: string; pos: number } {
   const text = textNode.textContent || '';
   // Start exactly at the hit-tested hover/click point (no backward pad). getTextNodeAtPoint

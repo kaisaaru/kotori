@@ -97,6 +97,10 @@ export async function deleteBook(id: string): Promise<void> {
   await tx.objectStore("books").delete(id);
 
   await tx.done;
+
+  // Drop the synchronous mirror too, otherwise re-importing the same book would resurrect a
+  // reading position from a copy the user already deleted.
+  clearProgressMirror(id);
 }
 
 export async function updateBookLastRead(id: string): Promise<void> {
@@ -126,21 +130,60 @@ export async function getChapter(
 
 // ===== Reading Progress =====
 
+const PROGRESS_MIRROR_PREFIX = "kotoba-progress:";
+
 export async function saveProgress(progress: ReadingProgress): Promise<void> {
   const db = await getDB();
   await db.put("progress", progress);
+}
+
+// IndexedDB writes are async, so a save fired from pagehide/visibilitychange can be discarded when
+// the browser tears the page down mid-transaction - losing the reader's last position on an abrupt
+// tab close. localStorage commits synchronously, so mirroring there makes that final save durable.
+// IndexedDB stays the primary store; this is only the last-moment safety net.
+export function saveProgressSync(progress: ReadingProgress): void {
+  try {
+    localStorage.setItem(
+      PROGRESS_MIRROR_PREFIX + progress.bookId,
+      JSON.stringify(progress)
+    );
+  } catch {
+    // Quota / private-mode failures must never interrupt reading.
+  }
+}
+
+function clearProgressMirror(bookId: string): void {
+  try {
+    localStorage.removeItem(PROGRESS_MIRROR_PREFIX + bookId);
+  } catch {
+    // Ignore - a stale mirror is harmless next to a deleted book.
+  }
 }
 
 export async function getProgress(
   bookId: string
 ): Promise<ReadingProgress | undefined> {
   const db = await getDB();
-  return db.get("progress", bookId);
+  const stored = await db.get("progress", bookId);
+
+  let mirrored: ReadingProgress | undefined;
+  try {
+    const raw = localStorage.getItem(PROGRESS_MIRROR_PREFIX + bookId);
+    if (raw) mirrored = JSON.parse(raw) as ReadingProgress;
+  } catch {
+    mirrored = undefined;
+  }
+
+  if (!mirrored) return stored;
+  if (!stored) return mirrored;
+  // The mirror is newer exactly when the async IndexedDB write lost the race with page teardown.
+  return mirrored.lastReadAt > stored.lastReadAt ? mirrored : stored;
 }
 
 export async function deleteProgress(bookId: string): Promise<void> {
   const db = await getDB();
   await db.delete("progress", bookId);
+  clearProgressMirror(bookId);
 }
 
 // ===== Settings =====
