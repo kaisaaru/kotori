@@ -42,6 +42,16 @@ export interface LookupResult {
   // `terms[0].expression.length` when the match came from deinflection (e.g. surface form
   // "食べさせられて" vs dictionary headword "食べる"). Used for accurate highlight width.
   focusedLength?: number;
+  // False when the server answered before its index finished building. Such a response looks
+  // exactly like a genuine miss (`terms: []`), so it must never be cached.
+  indexReady?: boolean;
+}
+
+export interface DictionaryStatus {
+  isReady: boolean;
+  isBuilding: boolean;
+  totalTerms: number;
+  totalKanji: number;
 }
 
 export interface CustomDictionaryMeta {
@@ -112,6 +122,13 @@ class DictionaryService {
       const res = await fetch(url);
       const data: LookupResult = await res.json();
 
+      // A result produced while the server index was still building is empty for every word, and
+      // is indistinguishable from a real miss. Caching it would keep that word broken for the rest
+      // of the session even after the index finishes, so return it without storing anything.
+      if (data.indexReady === false) {
+        return data;
+      }
+
       // Store in LRU Cache
       if (this.cache.size >= 50) {
         const firstKey = this.cache.keys().next().value;
@@ -181,12 +198,16 @@ class DictionaryService {
     }
   }
 
-  async getStatus(): Promise<{ isReady: boolean; isBuilding: boolean; totalTerms: number; totalKanji: number }> {
+  // Returns null when the status could not be fetched, so callers can keep showing the last known
+  // state instead of a guess. Reporting a made-up "ready" here used to mask real outages, and a
+  // made-up "not ready" would disable the dictionary on a momentary network blip.
+  async getStatus(): Promise<DictionaryStatus | null> {
     try {
       const res = await fetch("/api/dictionary/lookup?status=1");
+      if (!res.ok) return null;
       return await res.json();
     } catch {
-      return { isReady: true, isBuilding: false, totalTerms: 0, totalKanji: 0 };
+      return null;
     }
   }
 

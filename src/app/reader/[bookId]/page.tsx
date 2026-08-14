@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -14,6 +15,7 @@ import {
   BookmarkCheck,
 } from "lucide-react";
 import { useReaderStore } from "@/stores/reader-store";
+import { useDictionaryStore } from "@/stores/dictionary-store";
 import {
   getBook,
   getChapters,
@@ -118,6 +120,55 @@ function findTextRange(container: HTMLElement, targetText: string): Range | null
   return null;
 }
 
+// Finds the occurrence of `targetText` whose position is closest to (nearLeft, nearTop) in viewport
+// coordinates, and returns its rects. findTextRange returns the FIRST match, which is fine for a
+// bookmarked sentence but wrong for a single dictionary word - short words like 良く recur many
+// times in a chapter, and the highlight would jump to the wrong one on every scroll.
+function findNearestTextRects(
+  container: HTMLElement,
+  targetText: string,
+  nearLeft: number,
+  nearTop: number
+): Array<{ left: number; top: number; width: number; height: number }> | null {
+  if (!targetText) return null;
+
+  let best: { dist: number; rects: DOMRect[] } | null = null;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+
+  while ((node = walker.nextNode())) {
+    const content = node.textContent;
+    if (!content) continue;
+    let from = content.indexOf(targetText);
+    while (from !== -1) {
+      try {
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, from + targetText.length);
+        const box = range.getBoundingClientRect();
+        const dist = Math.hypot(box.left - nearLeft, box.top - nearTop);
+        if (!best || dist < best.dist) {
+          best = { dist, rects: Array.from(range.getClientRects()) };
+        }
+        // Close enough that no other occurrence can be nearer - stop scanning the chapter.
+        if (dist < 2) break;
+      } catch {
+        // Skip an occurrence that cannot be ranged; others may still match.
+      }
+      from = content.indexOf(targetText, from + 1);
+    }
+    if (best && best.dist < 2) break;
+  }
+
+  if (!best) return null;
+  return best.rects.map((r) => ({
+    left: r.left,
+    top: r.top,
+    width: Math.max(r.width, 4),
+    height: Math.max(r.height, 4),
+  }));
+}
+
 // Temporary instrumentation for the reading-position save/restore path. Flip to false once the
 // restore behaviour has been confirmed working end to end.
 const DEBUG_PROGRESS = false;
@@ -166,6 +217,9 @@ export default function ReaderPage() {
     setShowToolbar,
   } = useReaderStore();
 
+  // Polled by DictionaryPrewarmer in the root layout - null means "not known yet", not "not ready".
+  const dictStatus = useDictionaryStore((s) => s.status);
+
   const mainRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -185,11 +239,25 @@ export default function ReaderPage() {
     position: { x: number; y: number };
     rects: Array<{ left: number; top: number; width: number; height: number }>;
   } | null>(null);
-  // Live highlight on the word currently shown in the dictionary popup (Yomitan-style scan highlight)
+  // The text node + offset the pointer actually landed on, captured at click/scan time. Resolving
+  // the highlight later by re-hit-testing the stored viewport point would pick a different
+  // character if the reader scrolled while the lookup was in flight; a node reference cannot drift.
+  const scanAnchorRef = useRef<{ textNode: Text; offset: number } | null>(null);
+  // Highlight on the word currently shown in the dictionary popup. Stored as viewport rects plus
+  // the matched text - deliberately NOT as a Range or node reference. The chapter DOM gets rebuilt
+  // underneath us (proven: a node that passed contentRef.contains() reported isConnected === false
+  // moments later), which orphans any node we hold on to. The bookmark overlay survives that by
+  // re-finding its text instead of remembering nodes, so this now works the same way.
   const [scanHighlight, setScanHighlight] = useState<{
+    text: string;
     rects: Array<{ left: number; top: number; width: number; height: number }>;
   } | null>(null);
-  const [scrollPos, setScrollPos] = useState({ left: 0, top: 0 });
+  const clearScanHighlight = useCallback(() => {
+    setScanHighlight(null);
+  }, []);
+  // Viewport box of the reading area, used to clip the fixed-position highlight overlays so they
+  // never paint over the header or toolbar. Refreshed whenever the overlays are.
+  const [overlayClip, setOverlayClip] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [isBookmarked, setIsBookmarked] = useState(false);
   const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -252,8 +320,8 @@ export default function ReaderPage() {
     });
   }, [bookId, currentChapterIndex]);
 
-  // Sync scroll position of contentRef container for 100% locked highlight overlay, and save
-  // reading progress shortly after scrolling settles - far more frequent/accurate than relying
+  // Track the in-chapter scroll ratio for the progress badge, and save reading progress shortly
+  // after scrolling settles - far more frequent/accurate than relying
   // solely on the 5-second periodic save below, so closing the tab mid-scroll loses at most a
   // fraction of a second of progress instead of up to 5 seconds.
   useEffect(() => {
@@ -261,11 +329,10 @@ export default function ReaderPage() {
     if (!container || !isLoaded) return;
 
     const handleScroll = () => {
-      setScrollPos({ left: container.scrollLeft, top: container.scrollTop });
       const ratio = getScrollPosition();
       setChapterScrollRatio(ratio);
 
-      // Keep the badge/overlay in sync above, but never let a restore's own scroll events feed
+      // Keep the badge in sync above, but never let a restore's own scroll events feed
       // the save paths - that would persist an intermediate position over the one being restored.
       if (isRestoringRef.current) return;
       lastScrollRatioRef.current = ratio;
@@ -303,20 +370,19 @@ export default function ReaderPage() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [isLoaded]);
 
-  // Recalculate bookmark rects dynamically on window resize / F11 fullscreen / layout reflow
+  // Recalculate bookmark rects on scroll / window resize / F11 fullscreen / layout reflow.
+  // Rects stay in viewport coordinates and are drawn with position: fixed, same as the scan
+  // highlight - converting to content-space and then rendering inside a scroll-shifted wrapper
+  // double-counted the scroll offset and slid the highlight away from its text.
   const updateBookmarkRects = useCallback(() => {
     if (!bookmarkOverlay || bookmarkOverlay.chapterIndex !== currentChapterIndex || !contentRef.current) return;
 
     const range = findTextRange(contentRef.current, bookmarkOverlay.text);
     if (!range) return;
 
-    const contentRect = contentRef.current.getBoundingClientRect();
-    const scrollTop = contentRef.current.scrollTop;
-    const scrollLeft = contentRef.current.scrollLeft;
-
     const rawClientRects = Array.from(range.getClientRects()).map((r) => ({
-      left: r.left - contentRect.left + scrollLeft,
-      top: r.top - contentRect.top + scrollTop,
+      left: r.left,
+      top: r.top,
       width: Math.max(r.width, 10),
       height: Math.max(r.height, 16),
     }));
@@ -335,10 +401,49 @@ export default function ReaderPage() {
     }
   }, [bookmarkOverlay, currentChapterIndex]);
 
+  // The bookmark overlay is painted in viewport coordinates, so its rects go stale the moment the
+  // reader scrolls or the layout reflows - recompute them from its live Range. Coalesced into one
+  // animation frame to keep scrolling smooth. Also covers resize / F11 fullscreen, which this
+  // overlay relied on before. (The scan highlight needs nothing here: it is a real browser
+  // selection, so the browser keeps it aligned on its own.)
   useEffect(() => {
-    window.addEventListener("resize", updateBookmarkRects);
-    return () => window.removeEventListener("resize", updateBookmarkRects);
-  }, [updateBookmarkRects]);
+    const el = contentRef.current;
+    if (!el || !isLoaded) return;
+
+    let raf = 0;
+    const refreshOverlays = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const box = el.getBoundingClientRect();
+        setOverlayClip((prev) =>
+          prev.top === box.top &&
+          prev.left === box.left &&
+          prev.width === box.width &&
+          prev.height === box.height
+            ? prev
+            : { top: box.top, left: box.left, width: box.width, height: box.height }
+        );
+        updateBookmarkRects();
+        // Re-find the scanned word by text rather than by a remembered node, exactly as the
+        // bookmark overlay does - that is what lets it survive the chapter DOM being rebuilt.
+        setScanHighlight((prev) => {
+          if (!prev || prev.rects.length === 0) return prev;
+          const anchor = prev.rects[0];
+          const rects = findNearestTextRects(el, prev.text, anchor.left, anchor.top);
+          return rects ? { ...prev, rects } : prev;
+        });
+      });
+    };
+
+    refreshOverlays(); // seed the clip box on mount, before any scrolling happens
+    el.addEventListener("scroll", refreshOverlays, { passive: true });
+    window.addEventListener("resize", refreshOverlays);
+    return () => {
+      el.removeEventListener("scroll", refreshOverlays);
+      window.removeEventListener("resize", refreshOverlays);
+      cancelAnimationFrame(raf);
+    };
+  }, [isLoaded, updateBookmarkRects]);
 
   // Detect highlighted/blocked text selection for dictionary popup & persistent bookmark
   useEffect(() => {
@@ -412,13 +517,10 @@ export default function ReaderPage() {
         rect = range.getBoundingClientRect();
 
         if (contentRef.current) {
-          const contentRect = contentRef.current.getBoundingClientRect();
-          const scrollTop = contentRef.current.scrollTop;
-          const scrollLeft = contentRef.current.scrollLeft;
-
+          // Viewport coordinates, drawn with position: fixed - see updateBookmarkRects.
           const rawClientRects = Array.from(range.getClientRects()).map((r) => ({
-            left: r.left - contentRect.left + scrollLeft,
-            top: r.top - contentRect.top + scrollTop,
+            left: r.left,
+            top: r.top,
             width: Math.max(r.width, 10),
             height: Math.max(r.height, 16),
           }));
@@ -428,8 +530,8 @@ export default function ReaderPage() {
           } else {
             relativeRects = [
               {
-                left: rect.left - contentRect.left + scrollLeft,
-                top: rect.top - contentRect.top + scrollTop,
+                left: rect.left,
+                top: rect.top,
                 width: Math.max(rect.width, 16),
                 height: Math.max(rect.height, 24),
               },
@@ -786,21 +888,34 @@ export default function ReaderPage() {
   }, [settings.writingMode, waitForContentImages]);
 
   // Highlight the word currently shown in the dictionary popup (Yomitan-style scan highlight).
-  // Re-locates the resolved word in the DOM from the original click point + the server's
-  // reported focusedStart, mirroring the same rect math used for the bookmark highlight.
+  // Locates the resolved word from the anchor captured at click/scan time plus the server's
+  // reported focusedStart.
   const onDictResolve = useCallback((res: LookupResult) => {
     if (!selectionState || selectionState.chunkPos === undefined || !contentRef.current) {
-      setScanHighlight(null);
+      clearScanHighlight();
       return;
     }
     const wordLen = res.focusedLength || res.terms[0]?.expression.length || res.query.length;
     if (!wordLen) {
-      setScanHighlight(null);
+      clearScanHighlight();
       return;
     }
-    const pointerData = getTextNodeAtPoint(selectionState.position.x, selectionState.position.y);
+    // Prefer the anchor recorded when the pointer was actually over the word: it cannot drift if
+    // the reader scrolls while the lookup is in flight. But it can go stale, and giving up then
+    // means no highlight at all - so fall back to re-hit-testing the stored point, which is what
+    // this did originally and demonstrably produced a visible highlight.
+    let pointerData = scanAnchorRef.current;
+    if (!pointerData || !contentRef.current.contains(pointerData.textNode)) {
+      // Aim at the middle of the stored character rect rather than its top-left corner - a corner
+      // can sit just outside the glyph and miss the hit-test.
+      pointerData = getTextNodeAtPoint(
+        selectionState.position.x + selectionState.position.width / 2,
+        selectionState.position.y + selectionState.position.height / 2,
+        contentRef.current
+      );
+    }
     if (!pointerData) {
-      setScanHighlight(null);
+      clearScanHighlight();
       return;
     }
     try {
@@ -809,7 +924,7 @@ export default function ReaderPage() {
       const start = Math.max(0, Math.min(text.length, wordStart));
       const end = Math.max(start, Math.min(text.length, start + wordLen));
       if (end <= start) {
-        setScanHighlight(null);
+        clearScanHighlight();
         return;
       }
 
@@ -817,20 +932,41 @@ export default function ReaderPage() {
       range.setStart(pointerData.textNode, start);
       range.setEnd(pointerData.textNode, end);
 
-      const contentRect = contentRef.current.getBoundingClientRect();
-      const scrollTop = contentRef.current.scrollTop;
-      const scrollLeft = contentRef.current.scrollLeft;
+      // Snapshot the rects now, while the Range is still valid, and keep only the matched text for
+      // later re-location. Holding the Range itself would not survive the chapter DOM being rebuilt.
+      const matchedText = range.toString();
       const rects = Array.from(range.getClientRects()).map((r) => ({
-        left: r.left - contentRect.left + scrollLeft,
-        top: r.top - contentRect.top + scrollTop,
+        left: r.left,
+        top: r.top,
         width: Math.max(r.width, 4),
         height: Math.max(r.height, 4),
       }));
-      setScanHighlight(rects.length > 0 ? { rects } : null);
+      setScanHighlight(rects.length > 0 ? { text: matchedText, rects } : null);
+
+      // Refine the popup's anchor from the single hovered character to the whole resolved word.
+      // In vertical writing a word runs DOWNWARD, so a one-character anchor understates where it
+      // ends and the popup, docked just below it, covered the rest of the word.
+      if (rects.length > 0) {
+        const box = range.getBoundingClientRect();
+        const refined = { x: box.left, y: box.top, width: box.width, height: box.height };
+        setSelectionState((prev) => {
+          if (!prev) return prev;
+          const p = prev.position;
+          if (
+            Math.abs(p.x - refined.x) < 1 &&
+            Math.abs(p.y - refined.y) < 1 &&
+            Math.abs(p.width - refined.width) < 1 &&
+            Math.abs(p.height - refined.height) < 1
+          ) {
+            return prev; // already the word's box - avoid a pointless re-render
+          }
+          return { ...prev, position: refined };
+        });
+      }
     } catch {
-      setScanHighlight(null);
+      clearScanHighlight();
     }
-  }, [selectionState]);
+  }, [selectionState, clearScanHighlight]);
 
   // Yomitan-like Hover/Tap Scanner
   useEffect(() => {
@@ -838,6 +974,19 @@ export default function ReaderPage() {
       if (!el || !isLoaded || isSettingsOpen || isTocOpen || !(settings.enableDictionary ?? true)) return;
 
       let scanTimeout: NodeJS.Timeout;
+      let dismissTimeout: NodeJS.Timeout;
+
+      // True when the pointer is over the open popup, or in the short gap leading to it. Moving
+      // from the word to the popup crosses blank space that hits no glyph, and dismissing on that
+      // would close the popup just before the pointer arrives - so treat the popup's box, padded
+      // generously, as still "on target".
+      const isHeadingForPopup = (x: number, y: number) => {
+        const popup = document.querySelector(".selection-popup");
+        if (!popup) return false;
+        const r = popup.getBoundingClientRect();
+        const pad = 32;
+        return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+      };
 
       const handleScan = (e: MouseEvent | TouchEvent, x: number, y: number) => {
         if (isDraggingRef.current) return; // don't flicker single-word popups while drag-selecting a sentence
@@ -854,11 +1003,15 @@ export default function ReaderPage() {
 
         if (shouldScan) {
           scanTimeout = setTimeout(() => {
-            const pointerData = getTextNodeAtPoint(x, y);
+            // Constrained to the chapter: an open popup overlapping the cursor would otherwise
+            // seed the anchor with one of its own text nodes.
+            const pointerData = getTextNodeAtPoint(x, y, el);
             if (pointerData) {
               const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
               if (chunk.text) {
+                clearTimeout(dismissTimeout); // landed on a word again - cancel any pending dismiss
                 const charRect = getCharRect(pointerData.textNode, pointerData.offset);
+                scanAnchorRef.current = pointerData;
                 setSelectionState({
                   text: chunk.text, // We pass a padded chunk; server resolves just the single word at chunkPos
                   position: charRect || { x, y, width: 4, height: 20 },
@@ -872,8 +1025,14 @@ export default function ReaderPage() {
             // Hover mode: the cursor is no longer over a resolvable word - live popup follows
             // the cursor, so dismiss it (unlike click/shift mode, which stay open until dismissed).
             if (isHoverMode && !isTouch) {
-              setSelectionState(null);
-              setScanHighlight(null);
+              if (isHeadingForPopup(x, y)) return;
+              // Short grace period so crossing the blank space between two characters - or the
+              // gap on the way to the popup - does not flicker the popup shut.
+              clearTimeout(dismissTimeout);
+              dismissTimeout = setTimeout(() => {
+                setSelectionState(null);
+                clearScanHighlight();
+              }, 200);
             }
           }, isTouch ? 50 : 20); // aggressive debounce for instant feel
         }
@@ -888,6 +1047,7 @@ export default function ReaderPage() {
         el.removeEventListener("mousemove", onMouseMove);
         el.removeEventListener("touchstart", onTouchStart);
         clearTimeout(scanTimeout);
+        clearTimeout(dismissTimeout);
       };
   }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger]);
 
@@ -903,7 +1063,7 @@ export default function ReaderPage() {
         resetScrollPosition();
       }
       setSelectionState(null);
-      setScanHighlight(null);
+      clearScanHighlight();
       if (typeof window !== "undefined") {
         window.getSelection()?.removeAllRanges();
       }
@@ -1070,11 +1230,12 @@ export default function ReaderPage() {
     const dictEnabled = settings.enableDictionary ?? true;
     const isClickMode = !settings.dictTrigger || settings.dictTrigger === "click";
     if (dictEnabled && isClickMode && !isTouchGestureRef.current) {
-      const pointerData = getTextNodeAtPoint(e.clientX, e.clientY);
+      const pointerData = getTextNodeAtPoint(e.clientX, e.clientY, contentRef.current);
       if (pointerData) {
         const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
         if (chunk.text) {
           const charRect = getCharRect(pointerData.textNode, pointerData.offset);
+          scanAnchorRef.current = pointerData;
           setSelectionState({
             text: chunk.text,
             position: charRect || { x: e.clientX, y: e.clientY, width: 4, height: 20 },
@@ -1105,7 +1266,7 @@ export default function ReaderPage() {
     // click on empty page area to close, same as clicking the X button.
     if (selectionState) {
       setSelectionState(null);
-      setScanHighlight(null);
+      clearScanHighlight();
       return;
     }
 
@@ -1442,15 +1603,20 @@ export default function ReaderPage() {
             transition: "opacity 0.15s ease",
           }}
         >
-          {/* ===== Persistent Selection Highlight Overlay (Inside contentRef) ===== */}
-          {bookmarkOverlay && bookmarkOverlay.chapterIndex === currentChapterIndex && (
+          {/* ===== Persistent Selection Highlight Overlay ===== */}
+          {/* Rects are viewport coordinates (see updateBookmarkRects), so the wrapper is fixed and
+              clipped to the reading area - it must not paint over the header or toolbar.
+              Rendered into document.body: a `position: fixed` element is only viewport-relative
+              while no ancestor establishes a containing block for it, and the reader nests this
+              deep inside transformed/animated wrappers. The portal removes that dependency. */}
+          {bookmarkOverlay && bookmarkOverlay.chapterIndex === currentChapterIndex && createPortal(
             <div
               style={{
-                position: "absolute",
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
+                position: "fixed",
+                top: `${overlayClip.top}px`,
+                left: `${overlayClip.left}px`,
+                width: `${overlayClip.width}px`,
+                height: `${overlayClip.height}px`,
                 pointerEvents: "none",
                 zIndex: 20,
                 overflow: "hidden",
@@ -1459,10 +1625,10 @@ export default function ReaderPage() {
               <div
                 style={{
                   position: "absolute",
-                  top: `${-scrollPos.top}px`,
-                  left: `${-scrollPos.left}px`,
-                  width: "100%",
-                  height: "100%",
+                  top: `${-overlayClip.top}px`,
+                  left: `${-overlayClip.left}px`,
+                  width: "100vw",
+                  height: "100vh",
                   pointerEvents: "none",
                 }}
               >
@@ -1500,7 +1666,7 @@ export default function ReaderPage() {
                           e.stopPropagation();
                           setBookmarkOverlay(null);
                           setSelectionState(null);
-                          setScanHighlight(null);
+                          clearScanHighlight();
                           if (typeof window !== "undefined") {
                             window.getSelection()?.removeAllRanges();
                           }
@@ -1546,50 +1712,8 @@ export default function ReaderPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* ===== Live Scanned-Word Highlight (Yomitan-style, follows the dictionary popup) ===== */}
-          {scanHighlight && (
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
-                pointerEvents: "none",
-                zIndex: 19,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: `${-scrollPos.top}px`,
-                  left: `${-scrollPos.left}px`,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                }}
-              >
-                {scanHighlight.rects.map((r, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      position: "absolute",
-                      left: `${r.left}px`,
-                      top: `${r.top}px`,
-                      width: `${r.width}px`,
-                      height: `${r.height}px`,
-                      backgroundColor: "rgba(56, 189, 248, 0.28)",
-                      borderRadius: "2px",
-                      pointerEvents: "none",
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           <div
@@ -1688,6 +1812,57 @@ export default function ReaderPage() {
         </button>
       </div>
 
+      {/* ===== Live Scanned-Word Highlight ===== */}
+      {/* Same painting mechanism as the bookmark overlay above - viewport rects in a fixed,
+          body-portalled wrapper clipped to the reading area - because that one is demonstrably
+          visible in this build. Plain fill, no dashed border or close button, so the dictionary
+          highlight stays visually distinct from a saved bookmark. */}
+      {scanHighlight && scanHighlight.rects.length > 0 && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            top: `${overlayClip.top}px`,
+            left: `${overlayClip.left}px`,
+            width: `${overlayClip.width}px`,
+            height: `${overlayClip.height}px`,
+            pointerEvents: "none",
+            zIndex: 19,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: `${-overlayClip.top}px`,
+              left: `${-overlayClip.left}px`,
+              width: "100vw",
+              height: "100vh",
+              pointerEvents: "none",
+            }}
+          >
+            {scanHighlight.rects.map((r, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: "absolute",
+                  left: `${r.left}px`,
+                  top: `${r.top}px`,
+                  width: `${r.width}px`,
+                  height: `${r.height}px`,
+                  backgroundColor: "rgba(56, 189, 248, 0.4)",
+                  borderLeft: r.height > r.width ? "3px dashed #0284c7" : "none",
+                  borderBottom: r.height <= r.width ? "2px dashed #0284c7" : "none",
+                  borderRadius: "3px",
+                  boxShadow: "0 0 10px rgba(56, 189, 248, 0.4)",
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* ===== Book-wide Reading Progress Badge (ttu-reader style, always visible regardless of toolbar) ===== */}
       {totalBookChars > 0 && (
         <div
@@ -1741,6 +1916,49 @@ export default function ReaderPage() {
         </div>
       )}
 
+      {/* ===== Dictionary Index Notice ===== */}
+      {/* Only rendered while the server index is still building, and dismissed by the status itself
+          rather than a timer - so the reader can tell at a glance whether the dictionary is usable
+          without having to open Settings. Sits above the chapter toast so the two never overlap. */}
+      {dictStatus && !dictStatus.isReady && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "132px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 59,
+            padding: "10px 20px",
+            borderRadius: "24px",
+            backgroundColor: "var(--kb-surface)",
+            color: "var(--kb-text)",
+            border: "1px solid rgba(234, 179, 8, 0.45)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            fontSize: "13px",
+            fontWeight: 700,
+            pointerEvents: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            animation: "fadeIn 0.2s ease-out",
+          }}
+        >
+          <span
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              backgroundColor: "#eab308",
+              flexShrink: 0,
+            }}
+          />
+          <span>
+            Menyiapkan kamus
+            {dictStatus.totalTerms > 0 ? ` — ${dictStatus.totalTerms.toLocaleString("id-ID")} entri` : "..."}
+          </span>
+        </div>
+      )}
+
       {/* ===== Block Selection Dictionary Popup ===== */}
       {selectionState && (
         <SelectionPopup
@@ -1749,7 +1967,7 @@ export default function ReaderPage() {
           position={selectionState.position}
           chunkPos={selectionState.chunkPos}
           onResolve={onDictResolve}
-          onClose={() => { setSelectionState(null); setScanHighlight(null); }}
+          onClose={() => { setSelectionState(null); clearScanHighlight(); }}
         />
       )}
 

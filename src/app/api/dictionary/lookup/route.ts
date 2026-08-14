@@ -354,9 +354,12 @@ async function buildServerIndexInBackground() {
       })
     );
 
-    // Save persistent disk cache for instant loading on future refreshes
+    // Save persistent disk cache for instant loading on future refreshes.
+    // Write into .next/ rather than src/data/: dropping a multi-hundred-MB file inside the watched
+    // source tree invalidates the dev compiler, which re-evaluates this route module and resets the
+    // module-scope index flags below - making the dictionary appear to rebuild itself at random.
     try {
-      const targetCacheFile = CACHE_FILES[0];
+      const targetCacheFile = CACHE_FILES[2];
       const cacheDir = path.dirname(targetCacheFile);
       if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
       fs.writeFileSync(
@@ -580,5 +583,8 @@ export async function GET(request: Request) {
     segmentedWords,
     focusedStart,
     focusedLength,
+    // Lets the client tell a genuine dictionary miss apart from a lookup that ran before the index
+    // finished building - the latter must not be cached, or the word stays broken all session.
+    indexReady: isIndexReady,
   });
 }

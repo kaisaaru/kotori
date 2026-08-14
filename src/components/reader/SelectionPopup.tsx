@@ -179,27 +179,56 @@ function isJapaneseMonolingual(name: string): boolean {
 // say - overflowing content scrolls internally instead of resizing the popup. Recomputed each
 // time a new word is looked up (see the effect below), so the popup moves to the newly
 // clicked/hovered word instead of staying stuck at the first word's spot.
+//
+// Wide viewports dock the panel beside the word; narrow ones stack it below (or above) instead,
+// since there is no sideways room there and docking would cover the word being read.
 function computeLayout(anchor: { x: number; y: number; width: number; height: number }) {
+  // Matches Yomitan's own defaults (popupWidth 400, popupHeight 250, popupVerticalOffset 10).
   const margin = 16;
-  const popupWidth = Math.min(340, window.innerWidth - margin * 2);
-  const panelHeight = Math.min(480, window.innerHeight - margin * 2);
+  const popupWidth = Math.min(400, window.innerWidth - margin * 2);
+  const panelHeight = Math.min(250, window.innerHeight - margin * 2);
+  // Yomitan's popupVerticalOffset default. Docking any tighter makes the popup overlap the very
+  // word it describes, and the reader hit-tests that spot; the pointer-toward-popup case is
+  // handled by the dismiss grace period instead, not by shrinking this.
+  const offset = 10;
 
   const anchorRight = anchor.x + anchor.width;
   const anchorBottom = anchor.y + anchor.height;
 
+  // On a narrow screen there is no room to sit beside the word - docking sideways there just
+  // covers it, which is exactly what the reader is trying to look at. Stack vertically instead:
+  // below the word by preference, above it when the space below cannot fit the panel.
+  const isNarrow = window.innerWidth < popupWidth + anchor.width + margin * 2 + offset * 2;
+  if (isNarrow) {
+    const left = Math.max(margin, Math.min(
+      anchor.x + anchor.width / 2 - popupWidth / 2,
+      window.innerWidth - popupWidth - margin
+    ));
+    const spaceBelow = window.innerHeight - anchorBottom - offset - margin;
+    const spaceAbove = anchor.y - offset - margin;
+    const placeBelow = spaceBelow >= panelHeight || spaceBelow >= spaceAbove;
+    // Shrink to the available side rather than clamping into the word: a clamp would slide the
+    // panel back over the very word it describes, which is the thing this layout exists to avoid.
+    // The panel scrolls internally, so a shorter box costs nothing but a little visible content.
+    const available = Math.max(120, placeBelow ? spaceBelow : spaceAbove);
+    const height = Math.min(panelHeight, available);
+    const top = placeBelow ? anchorBottom + offset : Math.max(margin, anchor.y - offset - height);
+    return { left, top, popupWidth, panelHeight: height };
+  }
+
   const spaceRight = window.innerWidth - anchorRight;
   const dockRight = spaceRight >= popupWidth + margin || spaceRight >= anchor.x;
   const left = dockRight
-    ? Math.min(anchorRight + 8, window.innerWidth - popupWidth - margin)
-    : Math.max(margin, anchor.x - popupWidth - 8);
+    ? Math.min(anchorRight + offset, window.innerWidth - popupWidth - margin)
+    : Math.max(margin, anchor.x - popupWidth - offset);
 
   // Normally dock below the word; flip above it when there isn't enough room underneath (e.g.
   // the word sits near the bottom of the viewport) and there's more room above instead.
   const spaceBelow = window.innerHeight - anchorBottom;
   const dockBelow = spaceBelow >= panelHeight + margin || spaceBelow >= anchor.y;
   const top = dockBelow
-    ? Math.min(anchor.y - 8, window.innerHeight - margin - panelHeight)
-    : Math.max(margin, anchorBottom - panelHeight + 8);
+    ? Math.min(anchor.y - offset, window.innerHeight - margin - panelHeight)
+    : Math.max(margin, anchorBottom - panelHeight + offset);
 
   return { left, top, popupWidth, panelHeight };
 }
@@ -210,12 +239,22 @@ export function SelectionPopup({ selectedText, explicitFurigana, position, chunk
   const [isBreakdownExpanded, setIsBreakdownExpanded] = useState(false);
   const [layout, setLayout] = useState(() => computeLayout(position));
 
-  // Reposition only when a genuinely new word is looked up (not on every internal re-render),
-  // so clicking/hovering a different word moves the popup there without it jittering mid-lookup.
+  // Reposition when a genuinely new word is looked up, and again when the reader refines the
+  // anchor from the hovered character to the resolved word's full box (see onDictResolve) - that
+  // second pass is what keeps the popup clear of the whole word in vertical text. `position` is
+  // set once per lookup, so this does not jitter mid-lookup.
   useEffect(() => {
     setLayout(computeLayout(position));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedText, chunkPos]);
+  }, [selectedText, chunkPos, position]);
+
+  // Rotating a phone flips which side has room - and can flip the layout between the beside-the-word
+  // and below-the-word arrangements entirely - so the placement has to be recomputed on resize.
+  useEffect(() => {
+    const onResize = () => setLayout(computeLayout(position));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [position]);
 
   // `selectedText` is a padded chunk (not an exact word) whenever it came from the click/hover
   // scanner - `chunkPos` marks the cursor's position within it, so the server resolves just that

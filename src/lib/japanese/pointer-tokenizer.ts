@@ -1,4 +1,4 @@
-export function getTextNodeAtPoint(x: number, y: number): { textNode: Text, offset: number } | null {
+export function getTextNodeAtPoint(x: number, y: number, root?: HTMLElement | null): { textNode: Text, offset: number } | null {
   if (typeof document === 'undefined') return null;
 
   let range: Range | null = null;
@@ -23,6 +23,12 @@ export function getTextNodeAtPoint(x: number, y: number): { textNode: Text, offs
   }
 
   if (!textNode) return null;
+
+  // Both APIs resolve against the TOPMOST element at these coordinates, so anything overlaying the
+  // book text yields a node from that overlay instead - the dictionary popup docks right beside the
+  // word it describes and routinely covers it. Accepting such a node meant the scan highlight was
+  // applied inside the popup rather than the chapter, and vanished as soon as the popup re-rendered.
+  if (root && !root.contains(textNode)) return null;
 
   // caretRangeFromPoint/caretPositionFromPoint always snap to the NEAREST character position,
   // even when the click landed far outside any actual glyph - e.g. tapping empty margin/whitespace
