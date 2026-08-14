@@ -8,7 +8,10 @@ import { useReaderStore } from "@/stores/reader-store";
 interface SelectionPopupProps {
   selectedText: string;
   explicitFurigana?: string;
-  position: { x: number; y: number };
+  // Anchor rect to dock the popup against (a character's or selection's bounding rect, viewport-
+  // relative) - NOT a raw click pixel, so the popup's position stays stable regardless of exactly
+  // where within a glyph the pointer landed.
+  position: { x: number; y: number; width: number; height: number };
   chunkPos?: number;
   onClose: () => void;
   onResolve?: (result: LookupResult) => void;
@@ -169,25 +172,36 @@ function isJapaneseMonolingual(name: string): boolean {
   return /国語|三省堂|広辞苑|大辞林|新明解|明鏡|岩波|大辞泉|学研/i.test(name);
 }
 
-// Dock the popup to whichever side of the click point has more room (like Yomitan's side panel),
-// and cap its height to the viewport so it never spills off-screen (the body scrolls internally
-// instead). Recomputed each time a new word is looked up (see the effect below), so the popup
-// moves to the newly clicked/hovered word instead of staying stuck at the first word's spot.
-function computeLayout(position: { x: number; y: number }) {
+// Dock the popup against the anchor rect's edges (like Yomitan's side panel) - never against a
+// raw click pixel, so clicking the same character at its edge vs. its middle vs. its start always
+// yields the same popup position. Height is a FIXED value (capped only by the viewport, never by
+// content) so the popup is a consistent size regardless of how much a given word's entry has to
+// say - overflowing content scrolls internally instead of resizing the popup. Recomputed each
+// time a new word is looked up (see the effect below), so the popup moves to the newly
+// clicked/hovered word instead of staying stuck at the first word's spot.
+function computeLayout(anchor: { x: number; y: number; width: number; height: number }) {
   const margin = 16;
   const popupWidth = Math.min(340, window.innerWidth - margin * 2);
-  const spaceRight = window.innerWidth - position.x;
-  const spaceLeft = position.x;
-  const dockRight = spaceRight >= popupWidth + margin + 20 || spaceRight >= spaceLeft;
+  const panelHeight = Math.min(480, window.innerHeight - margin * 2);
+
+  const anchorRight = anchor.x + anchor.width;
+  const anchorBottom = anchor.y + anchor.height;
+
+  const spaceRight = window.innerWidth - anchorRight;
+  const dockRight = spaceRight >= popupWidth + margin || spaceRight >= anchor.x;
   const left = dockRight
-    ? Math.min(position.x + 20, window.innerWidth - popupWidth - margin)
-    : Math.max(margin, position.x - popupWidth - 20);
+    ? Math.min(anchorRight + 8, window.innerWidth - popupWidth - margin)
+    : Math.max(margin, anchor.x - popupWidth - 8);
 
-  const minPanelHeight = 220;
-  const top = Math.max(margin, Math.min(position.y - 40, window.innerHeight - margin - minPanelHeight));
-  const maxHeight = Math.max(minPanelHeight, window.innerHeight - top - margin);
+  // Normally dock below the word; flip above it when there isn't enough room underneath (e.g.
+  // the word sits near the bottom of the viewport) and there's more room above instead.
+  const spaceBelow = window.innerHeight - anchorBottom;
+  const dockBelow = spaceBelow >= panelHeight + margin || spaceBelow >= anchor.y;
+  const top = dockBelow
+    ? Math.min(anchor.y - 8, window.innerHeight - margin - panelHeight)
+    : Math.max(margin, anchorBottom - panelHeight + 8);
 
-  return { left, top, popupWidth, maxHeight };
+  return { left, top, popupWidth, panelHeight };
 }
 
 export function SelectionPopup({ selectedText, explicitFurigana, position, chunkPos, onClose, onResolve }: SelectionPopupProps) {
@@ -263,7 +277,7 @@ export function SelectionPopup({ selectedText, explicitFurigana, position, chunk
 
   if (!selectedText.trim()) return null;
 
-  const { left, top, popupWidth, maxHeight } = layout;
+  const { left, top, popupWidth, panelHeight } = layout;
 
   const allRawTerms = lookupData?.terms || [];
 
@@ -303,7 +317,7 @@ export function SelectionPopup({ selectedText, explicitFurigana, position, chunk
         left: `${left}px`,
         top: `${top}px`,
         width: `${popupWidth}px`,
-        maxHeight: `${maxHeight}px`,
+        height: `${panelHeight}px`,
         zIndex: 100,
         borderRadius: "20px",
         backgroundColor: "rgba(15, 23, 42, 0.94)",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   getChapters,
   getProgress,
   saveProgress,
+  saveProgressSync,
   updateBookLastRead,
   getSettings,
   saveSettings,
@@ -29,7 +30,7 @@ import ReaderSettingsPanel from "@/components/reader/ReaderSettingsPanel";
 import TableOfContents from "@/components/reader/TableOfContents";
 import { SelectionPopup } from "@/components/reader/SelectionPopup";
 import type { LookupResult } from "@/services/dictionary-service";
-import { getTextNodeAtPoint, extractContextChunk, getExplicitFurigana } from "@/lib/japanese/pointer-tokenizer";
+import { getTextNodeAtPoint, extractContextChunk, getExplicitFurigana, getCharRect } from "@/lib/japanese/pointer-tokenizer";
 
 // Helper to extract clean base text and explicit furigana from a selection container
 function extractTextAndFurigana(container: HTMLElement, range?: Range | null, selection?: Selection | null) {
@@ -117,6 +118,33 @@ function findTextRange(container: HTMLElement, targetText: string): Range | null
   return null;
 }
 
+// Temporary instrumentation for the reading-position save/restore path. Flip to false once the
+// restore behaviour has been confirmed working end to end.
+const DEBUG_PROGRESS = false;
+
+// Detects at runtime whether this element's scrollLeft uses the negative range [-max, 0] or the
+// positive range [0, max]. Browsers disagree for writing-mode: vertical-rl, and getScrollPosition's
+// Math.abs() erases the distinction - so guessing the sign here has already caused several rounds
+// of "restore always lands at the chapter start", because an out-of-range write is silently
+// clamped to 0. Probing costs one synchronous reflow and removes the guess entirely, the way
+// ttu-reader's formatPos helper keeps its read and write paths symmetric.
+function usesNegativeScrollLeft(el: HTMLElement): boolean {
+  const original = el.scrollLeft;
+  el.scrollLeft = -1;
+  const isNegative = el.scrollLeft < 0;
+  el.scrollLeft = original;
+  return isNegative;
+}
+
+// Plain-text character count of a chapter's HTML (tags stripped) - used to weight book-wide
+// reading progress by actual chapter length instead of assuming every chapter is the same size.
+function getPlainTextLength(html: string): number {
+  if (typeof document === "undefined") return 0;
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  return (el.textContent || "").length;
+}
+
 export default function ReaderPage() {
   const params = useParams();
   const router = useRouter();
@@ -144,7 +172,10 @@ export default function ReaderPage() {
   const [selectionState, setSelectionState] = useState<{
     text: string;
     explicitFurigana?: string;
-    position: { x: number; y: number };
+    // Anchor rect for the popup to dock against (character rect for click/hover, selection rect
+    // for drag-selection) - NOT the raw click pixel, so position stays stable regardless of
+    // exactly where within a character's glyph the pointer landed.
+    position: { x: number; y: number; width: number; height: number };
     chunkPos?: number; // click/hover point's offset within `text`, when text is a padded chunk (not an exact selection)
   } | null>(null);
   const [bookmarkOverlay, setBookmarkOverlay] = useState<{
@@ -170,6 +201,44 @@ export default function ReaderPage() {
   // Precise reading-position restore (set from saved progress before chapter mounts, consumed once)
   const pendingScrollRestoreRef = useRef<number | null>(null);
   const [chapterScrollRatio, setChapterScrollRatio] = useState(0);
+  // Debounced progress save fired shortly after scrolling stops (see the scroll-sync effect below)
+  const scrollSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Latest book/chapter, refreshed every render - lets the scroll-listener effect below stay
+  // subscribed for the component's whole lifetime (deps: [isLoaded] only) instead of tearing
+  // down and rebuilding on every chapter change, which would cancel any debounced save that was
+  // still pending at the moment of the chapter switch.
+  const latestBookRef = useRef(book);
+  const latestChapterIndexRef = useRef(currentChapterIndex);
+  useEffect(() => {
+    latestBookRef.current = book;
+    latestChapterIndexRef.current = currentChapterIndex;
+  });
+  // Last successfully-measured scroll ratio, cached outside the DOM so "about to lose the page"
+  // saves (unmount cleanup, visibilitychange, pagehide) still have a correct value to persist even
+  // if contentRef.current is already null/detached by the time those deferred callbacks run - React
+  // clears refs for an unmounting subtree during its synchronous commit phase, but passive effect
+  // cleanups (where the unmount-triggered save lives) run later, so calling getScrollPosition()
+  // fresh from inside them was silently saving 0 (chapter start) and clobbering whatever the
+  // debounced scroll-save had just correctly written a moment earlier.
+  const lastScrollRatioRef = useRef(0);
+  // True while a saved position is being restored. Restoring scrolls the container, which fires
+  // scroll events at intermediate (usually zero) offsets - letting those reach the save paths
+  // would persist the restore's own transient position over the value being restored. ttu-reader
+  // solves the same problem by only subscribing its auto-bookmark after the restore resolves and
+  // skipping the first emission.
+  const isRestoringRef = useRef(false);
+  // Guards every "about to lose the page" save. A freshly mounted reader has not measured a scroll
+  // position yet, so persisting one writes 0 over a perfectly good stored position. StrictMode's
+  // mount/cleanup/mount cycle hit exactly that on every client-side revisit: the Zustand store
+  // keeps the previous book around, so the `if (!book) return` guard let the bogus save through.
+  const hasMeasuredPositionRef = useRef(false);
+
+  // Plain-text character count per chapter, computed once per book load - used to weight
+  // book-wide reading progress by actual chapter length instead of assuming uniform chapter size.
+  const chapterCharCounts = useMemo(
+    () => chapters.map((c) => getPlainTextLength(c.htmlContent)),
+    [chapters]
+  );
 
   // Sync bookmark state when chapter changes
   useEffect(() => {
@@ -183,17 +252,54 @@ export default function ReaderPage() {
     });
   }, [bookId, currentChapterIndex]);
 
-  // Sync scroll position of contentRef container for 100% locked highlight overlay
+  // Sync scroll position of contentRef container for 100% locked highlight overlay, and save
+  // reading progress shortly after scrolling settles - far more frequent/accurate than relying
+  // solely on the 5-second periodic save below, so closing the tab mid-scroll loses at most a
+  // fraction of a second of progress instead of up to 5 seconds.
   useEffect(() => {
     const container = contentRef.current;
-    if (!container) return;
+    if (!container || !isLoaded) return;
 
     const handleScroll = () => {
       setScrollPos({ left: container.scrollLeft, top: container.scrollTop });
-      setChapterScrollRatio(getScrollPosition());
+      const ratio = getScrollPosition();
+      setChapterScrollRatio(ratio);
+
+      // Keep the badge/overlay in sync above, but never let a restore's own scroll events feed
+      // the save paths - that would persist an intermediate position over the one being restored.
+      if (isRestoringRef.current) return;
+      lastScrollRatioRef.current = ratio;
+      hasMeasuredPositionRef.current = true;
+
+      const currentBook = latestBookRef.current;
+      if (currentBook) {
+        clearTimeout(scrollSaveTimeoutRef.current);
+        scrollSaveTimeoutRef.current = setTimeout(() => {
+          if (DEBUG_PROGRESS) {
+            console.log("[progress] save", {
+              source: "debounced",
+              bookId: currentBook.id,
+              chapterIndex: latestChapterIndexRef.current,
+              ratio: lastScrollRatioRef.current,
+            });
+          }
+          const payload = {
+            bookId: currentBook.id,
+            chapterIndex: latestChapterIndexRef.current,
+            scrollPosition: lastScrollRatioRef.current,
+            lastReadAt: Date.now(),
+          };
+          saveProgressSync(payload);
+          saveProgress(payload);
+        }, 600);
+      }
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
+    // Deliberately does NOT clearTimeout(scrollSaveTimeoutRef.current) here - a pending debounced
+    // save should still fire even if this effect somehow re-runs, instead of being silently
+    // cancelled (that was the bug: re-subscribing on every chapter change used to drop whatever
+    // save was in flight at the moment of the chapter switch).
     return () => container.removeEventListener("scroll", handleScroll);
   }, [isLoaded]);
 
@@ -361,8 +467,10 @@ export default function ReaderPage() {
           text,
           explicitFurigana: explicitFurigana || undefined,
           position: {
-            x: rect.left + rect.width / 2,
+            x: rect.left,
             y: rect.top,
+            width: rect.width,
+            height: rect.height,
           },
         });
 
@@ -434,15 +542,76 @@ export default function ReaderPage() {
   useEffect(() => {
     if (!book || !isLoaded) return;
     const interval = setInterval(() => {
+      if (isRestoringRef.current || !hasMeasuredPositionRef.current) return;
+      if (DEBUG_PROGRESS) {
+        console.log("[progress] save", {
+          source: "interval",
+          bookId: book.id,
+          chapterIndex: currentChapterIndex,
+          ratio: lastScrollRatioRef.current,
+        });
+      }
       saveProgress({
         bookId: book.id,
         chapterIndex: currentChapterIndex,
-        scrollPosition: getScrollPosition(),
+        scrollPosition: lastScrollRatioRef.current,
         lastReadAt: Date.now(),
       });
     }, 5000);
     return () => clearInterval(interval);
   }, [book, currentChapterIndex, isLoaded]);
+
+  // Ref to the latest "save current progress" function, refreshed after every render. Lets the
+  // mount-once effect below call an always-current save without needing to re-subscribe its
+  // listeners (and re-run its cleanup) on every chapter/book change - re-running that cleanup on
+  // each chapter change would risk reading contentRef's scroll dimensions after the DOM has
+  // already swapped to the NEW chapter's content, saving a meaningless scroll ratio.
+  const saveProgressNowRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    saveProgressNowRef.current = () => {
+      if (!book || !hasMeasuredPositionRef.current) return;
+      if (DEBUG_PROGRESS) {
+        console.log("[progress] save", {
+          source: "unmount/hidden",
+          bookId: book.id,
+          chapterIndex: currentChapterIndex,
+          ratio: lastScrollRatioRef.current,
+        });
+      }
+      const payload = {
+        bookId: book.id,
+        chapterIndex: currentChapterIndex,
+        scrollPosition: lastScrollRatioRef.current,
+        lastReadAt: Date.now(),
+      };
+      // Synchronous mirror first: this runs on pagehide/unmount, where the async IndexedDB write
+      // below may never commit before the page is torn down.
+      saveProgressSync(payload);
+      saveProgress(payload);
+    };
+  });
+
+  // Save progress immediately when the tab is hidden/closed, or when this page unmounts (e.g.
+  // navigating back to Home) - the debounced scroll-save and 5s interval above cover normal
+  // reading, but none of them fire on tab close/switch or client-side route changes.
+  // visibilitychange fires reliably on tab switch/minimize/mobile backgrounding and well before
+  // most close flows finish, so it's the primary safety net; pagehide is a secondary net for
+  // actual navigation/unload; this effect's cleanup (mount-once, so it only fires on true
+  // unmount) covers in-app navigation.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") saveProgressNowRef.current();
+    };
+    const handlePageHide = () => saveProgressNowRef.current();
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      saveProgressNowRef.current();
+    };
+  }, []);
 
   // Save settings on change
   useEffect(() => {
@@ -471,6 +640,10 @@ export default function ReaderPage() {
 
   // Scroll reset helper: vertical Japanese text reads right-to-left!
   const resetScrollPosition = useCallback(() => {
+    // Jumping to a chapter start is a legitimate measured position, so record it - otherwise
+    // leaving right after a chapter change would have nothing valid to persist.
+    lastScrollRatioRef.current = 0;
+    hasMeasuredPositionRef.current = true;
     requestAnimationFrame(() => {
       const el = contentRef.current;
       if (!el) return;
@@ -485,24 +658,132 @@ export default function ReaderPage() {
     });
   }, [settings.writingMode]);
 
+  // Waits for every <img> inside the chapter content to finish loading (or fail) before resolving.
+  // Chapter images come from EPUB data URIs (see epub-parser.ts's extractImageAsDataUrl) - no
+  // network wait, but the browser still needs a decode pass before scrollWidth reflects the
+  // image's final size, and that decode isn't guaranteed to land within a couple of animation
+  // frames for large CG/manga-panel images. Without waiting, applyScrollPosition below measured
+  // scrollWidth/clientWidth against a pre-decode (too-small) layout and landed close to the
+  // chapter start regardless of the saved ratio.
+  const waitForContentImages = useCallback((el: HTMLElement): Promise<void> => {
+    const imgs = Array.from(el.querySelectorAll("img"));
+    if (imgs.length === 0) return Promise.resolve();
+    return Promise.all(
+      imgs.map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                img.addEventListener("load", () => resolve(), { once: true });
+                img.addEventListener("error", () => resolve(), { once: true });
+              })
+      )
+    ).then(() => undefined);
+  }, []);
+
   // Apply a previously-saved 0-1 scroll ratio (inverse of getScrollPosition) to restore the
   // exact reading position on load - as opposed to resetScrollPosition, which always jumps to
   // the chapter start and is used for explicit chapter navigation (next/prev/TOC/links).
+  //
+  // Restoring only produces the right offset once the layout it measures against is final, so this
+  // waits on images AND webfonts (the reader's Noto Serif JP is large enough that a late swap
+  // visibly reflows the text), then waits for the container to actually have a size, and finally
+  // verifies the write instead of trusting it.
   const applyScrollPosition = useCallback((ratio: number) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = contentRef.current;
-        if (!el) return;
-        if (settings.writingMode === "vertical") {
-          const max = el.scrollWidth - el.clientWidth;
-          el.scrollLeft = max > 0 ? ratio * max : 0;
-        } else {
-          const max = el.scrollHeight - el.clientHeight;
-          el.scrollTop = max > 0 ? ratio * max : 0;
-        }
-      });
+    const el = contentRef.current;
+    if (!el) return;
+
+    isRestoringRef.current = true;
+    const finish = (restoredRatio?: number) => {
+      // Scroll events fired by the restore itself are ignored, so without seeding these here the
+      // ref would sit at 0 until the user scrolls - and any save in between (5s interval, leaving
+      // the page) would wipe the position that was just restored.
+      if (restoredRatio !== undefined) {
+        lastScrollRatioRef.current = restoredRatio;
+        hasMeasuredPositionRef.current = true;
+      }
+      isRestoringRef.current = false;
+    };
+
+    const fontsReady: Promise<unknown> =
+      typeof document !== "undefined" && document.fonts ? document.fonts.ready : Promise.resolve();
+    // Never let a gate that fails to settle strand isRestoringRef at true - that would suppress
+    // every save for the rest of the session, which is worse than restoring against a stale layout.
+    const gate = Promise.race([
+      Promise.all([waitForContentImages(el), fontsReady]),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
+
+    gate.then(() => {
+      // `attempt` guards a single retry: if the browser clamped our write back to ~0 while we asked
+      // for a real offset, the layout still wasn't final, so measure and write once more.
+      const write = (attempt: number, framesWaited: number) => {
+        requestAnimationFrame(() => {
+          const target = contentRef.current;
+          if (!target) {
+            finish();
+            return;
+          }
+
+          // A container that has not been laid out yet reports scrollWidth === clientWidth, which
+          // yields max === 0 and silently restores to the chapter start. Wait it out rather than
+          // committing a position measured against a zero-sized box.
+          if (target.clientWidth === 0 || target.clientHeight === 0) {
+            if (framesWaited < 30) {
+              write(attempt, framesWaited + 1);
+            } else {
+              finish();
+            }
+            return;
+          }
+
+          const vertical = settings.writingMode === "vertical";
+          const max = vertical
+            ? target.scrollWidth - target.clientWidth
+            : target.scrollHeight - target.clientHeight;
+          const desired = max > 0 ? ratio * max : 0;
+
+          // Measure the sign convention rather than assuming it: browsers disagree on whether a
+          // vertical-rl scroller's scrollLeft runs [-max, 0] or [0, max], and writing the wrong
+          // sign is out of range, so it gets clamped to 0 - i.e. straight back to the chapter start.
+          const negative = vertical ? usesNegativeScrollLeft(target) : false;
+          if (vertical) {
+            target.scrollLeft = negative ? -desired : desired;
+          } else {
+            target.scrollTop = desired;
+          }
+
+          const actual = vertical ? target.scrollLeft : target.scrollTop;
+
+          if (DEBUG_PROGRESS) {
+            console.log("[progress] restore", {
+              savedRatio: ratio,
+              writingMode: settings.writingMode,
+              usesNegative: negative,
+              clientWidth: target.clientWidth,
+              scrollWidth: target.scrollWidth,
+              max,
+              desired,
+              actualAfterWrite: actual,
+              attempt,
+            });
+          }
+
+          if (Math.abs(actual) < 1 && desired > 1 && attempt === 0) {
+            write(attempt + 1, 0);
+            return;
+          }
+          // Record what actually landed rather than what was asked for, so a clamped restore
+          // persists the position the reader is really at.
+          finish(max > 0 ? Math.abs(actual) / max : 0);
+        });
+      };
+
+      // One extra frame first, so the layout produced by the just-mounted chapter has been
+      // committed before the initial measurement.
+      requestAnimationFrame(() => write(0, 0));
     });
-  }, [settings.writingMode]);
+  }, [settings.writingMode, waitForContentImages]);
 
   // Highlight the word currently shown in the dictionary popup (Yomitan-style scan highlight).
   // Re-locates the resolved word in the DOM from the original click point + the server's
@@ -577,9 +858,10 @@ export default function ReaderPage() {
             if (pointerData) {
               const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
               if (chunk.text) {
+                const charRect = getCharRect(pointerData.textNode, pointerData.offset);
                 setSelectionState({
                   text: chunk.text, // We pass a padded chunk; server resolves just the single word at chunkPos
-                  position: { x, y },
+                  position: charRect || { x, y, width: 4, height: 20 },
                   chunkPos: chunk.pos,
                   explicitFurigana: getExplicitFurigana(pointerData.textNode),
                 });
@@ -792,9 +1074,10 @@ export default function ReaderPage() {
       if (pointerData) {
         const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
         if (chunk.text) {
+          const charRect = getCharRect(pointerData.textNode, pointerData.offset);
           setSelectionState({
             text: chunk.text,
-            position: { x: e.clientX, y: e.clientY },
+            position: charRect || { x: e.clientX, y: e.clientY, width: 4, height: 20 },
             chunkPos: chunk.pos,
             explicitFurigana: getExplicitFurigana(pointerData.textNode),
           });
@@ -853,12 +1136,27 @@ export default function ReaderPage() {
     );
   }
 
-  // chapterScrollRatio follows getScrollPosition()'s raw convention, which is flipped for
-  // vertical-rl text (1 = chapter start, 0 = chapter end); normalize to 0=start/1=end before blending.
-  const inChapterProgress = settings.writingMode === "vertical" ? 1 - chapterScrollRatio : chapterScrollRatio;
-  const progressPercent = chapters.length > 0
-    ? Math.round(((currentChapterIndex + inChapterProgress) / chapters.length) * 100)
-    : 0;
+  // Empirically verified (not just theoretically derived - vertical-rl scrollLeft direction has
+  // proven inconsistent/tricky across this project, and a "flip for vertical mode" assumption
+  // here was previously backwards, causing progress to visibly DECREASE while reading forward):
+  // raw chapterScrollRatio already increases as the user reads forward in vertical mode too,
+  // same as horizontal - no flip needed either way.
+  const normalizedChapterRatio = chapterScrollRatio;
+  // A chapter with nothing to scroll (its whole content already fits on screen) counts as fully
+  // read the moment it's displayed, rather than being stuck at 0% until the user navigates away.
+  const isChapterScrollable = contentRef.current
+    ? settings.writingMode === "vertical"
+      ? contentRef.current.scrollWidth > contentRef.current.clientWidth
+      : contentRef.current.scrollHeight > contentRef.current.clientHeight
+    : true;
+  const inChapterProgress = isChapterScrollable ? normalizedChapterRatio : 1;
+
+  const totalBookChars = chapterCharCounts.reduce((a, b) => a + b, 0);
+  const charsBeforeChapter = chapterCharCounts.slice(0, currentChapterIndex).reduce((a, b) => a + b, 0);
+  const currentChapterChars = chapterCharCounts[currentChapterIndex] ?? 0;
+  const currentCharPosition = Math.round(charsBeforeChapter + currentChapterChars * inChapterProgress);
+  const bookPercent = totalBookChars > 0 ? (currentCharPosition / totalBookChars) * 100 : 0;
+  const progressPercent = Math.round(bookPercent);
 
   return (
     <div
@@ -1176,7 +1474,7 @@ export default function ReaderPage() {
                       setSelectionState({
                         text: bookmarkOverlay.text,
                         explicitFurigana: bookmarkOverlay.explicitFurigana,
-                        position: bookmarkOverlay.position,
+                        position: { ...bookmarkOverlay.position, width: 4, height: 20 },
                       });
                     }}
                     title="Penanda Bacaan Terakhir (Klik untuk lihat kamus)"
@@ -1389,6 +1687,30 @@ export default function ReaderPage() {
           <ChevronRight style={{ width: "16px", height: "16px" }} />
         </button>
       </div>
+
+      {/* ===== Book-wide Reading Progress Badge (ttu-reader style, always visible regardless of toolbar) ===== */}
+      {totalBookChars > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "12px",
+            right: "12px",
+            zIndex: 45,
+            pointerEvents: "none",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            backgroundColor: "rgba(15, 23, 42, 0.55)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            color: "rgba(255, 255, 255, 0.7)",
+            fontSize: "11px",
+            fontFamily: "monospace",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {currentCharPosition} / {totalBookChars} &nbsp; {bookPercent.toFixed(2)}%
+        </div>
+      )}
 
       {/* ===== Chapter Transition Toast Notification ===== */}
       {chapterNotice && (
