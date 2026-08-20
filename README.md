@@ -4,8 +4,11 @@
 
 # Kotoba Reader AI
 
-**Kotoba Reader AI** (Kotori) — Platform Pembaca Light Novel & Web Novel Jepang Serba-Ada yang Canggih, Cepat, dan Imersif.
+**Kotoba Reader AI** (Kotori) — An All-in-One, Fast, and Immersive Platform for Reading Japanese Light Novels & Web Novels.
 
+**[🚀 Live Demo — kotoriai.vercel.app](https://kotoriai.vercel.app)**
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-kotoriai.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://kotoriai.vercel.app)
 [![Next.js](https://img.shields.io/badge/Next.js-16_App_Router-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -19,91 +22,91 @@
 
 ## Overview
 
-Kotoba Reader AI didesain khusus untuk memberikan pengalaman membaca novel Jepang (*EPUB*) secara otentik. Dilengkapi kamus pop-up Yomitan terintegrasi, alat pembedah tata bahasa dan Kanji, serta pengucapan suara bahasa Jepang berakurasi tinggi (*Text-to-Speech*).
+Kotoba Reader AI is purpose-built to deliver an authentic Japanese novel (*EPUB*) reading experience. It comes with an integrated Yomitan-style pop-up dictionary, grammar and Kanji breakdown tools, and high-accuracy Japanese Text-to-Speech.
 
 ---
 
-## Fitur Utama
+## Key Features
 
 ### 1. Native Japanese EPUB Reader
-- **Teks Vertikal (縦書き) & Horizontal (横書き)**: Mendukung mode baca otentik Jepang dengan konversi scroll mouse pintar tanpa efek *jumping* antar bab.
-- **Tipografi Otentik**: Pilihan font Jepang pilihan (*Noto Serif JP*, *Yu Mincho*, *Hiragino Mincho ProN*, *Noto Sans JP*).
-- **Kustomisasi Lengkap**: Ukuran font, jarak antar baris (*line height*), margin layout, serta pilihan tema (*Dark, Light, Sepia*).
+- **Vertical (縦書き) & Horizontal (横書き) Text**: Authentic Japanese reading modes with smart mouse-scroll conversion and no jumping between chapters.
+- **Authentic Typography**: A curated selection of Japanese fonts (*Noto Serif JP*, *Yu Mincho*, *Hiragino Mincho ProN*, *Noto Sans JP*).
+- **Full Customization**: Font size, line height, layout margins, and theme options (*Dark, Light, Sepia*).
 
-### 2. Kamus Pop-Up Yomitan (*Block-Text Selection*)
-- **Auto-Lookup**: Cukup sorot kata atau kalimat Jepang di desktop maupun HP (*touchscreen*) untuk membuka pop-up kamus secara instan.
-- **Integrasi Multi-Kamus**: Terhubung dengan kamus **JIDict (Bahasa Indonesia)**, **Jitendex (English)**, **三省堂国語辞典**, **NHK Pitch Accent**, dan **JLPT Level Badges**.
-- **Yomitan AST Parser**: Mengolah struktur data JSON Yomitan menjadi tampilan definisi yang rapi dan mudah dibaca.
+### 2. Yomitan-Style Pop-Up Dictionary (*Block-Text Selection*)
+- **Auto-Lookup**: Simply highlight a word or sentence — on desktop or touchscreen — to open the dictionary pop-up instantly.
+- **Multi-Dictionary Integration**: Connects to **JIDict (Indonesian)**, **Jitendex (English)**, **三省堂国語辞典**, **NHK Pitch Accent**, and **JLPT Level Badges**.
+- **Yomitan AST Parser**: Renders Yomitan's structured JSON content into clean, readable definitions.
 
-### 3. Bedah Kata & Kartu Detail Kanji
-- **Deconstructor Kalimat**: Memecah kalimat panjang menjadi komponen kata penyusun lengkap dengan cara baca (*Furigana/Hiragana*) dan artinya.
-- **Kartu Kanji**: Menampilkan rincian stroke, bacaan *Onyomi* & *Kunyomi*, serta terjemahan per karakter Kanji.
+### 3. Sentence Breakdown & Kanji Detail Cards
+- **Sentence Deconstructor**: Breaks long sentences into their component words, complete with readings (*Furigana/Hiragana*) and meanings.
+- **Kanji Cards**: Displays stroke order details, *Onyomi* & *Kunyomi* readings, and per-character translations.
 
 ### 4. High-Precision Text-to-Speech (TTS)
-- **Pelafalan Kontekstual**: Memanfaatkan Web Speech API dengan penyesuaian konteks bacaan Jepang (misal: mengeja `今日は` sebagai *"Kyou wa"* dengan tepat).
-- **Pengucapan Kalimat Utuh**: Mendukung narasi audio untuk seluruh bagian teks yang dipilih.
+- **Contextual Pronunciation**: Uses the Web Speech API with Japanese-specific context handling (e.g. correctly reading `今日は` as *"Kyou wa"*).
+- **Full-Sentence Narration**: Supports audio narration for any selected block of text.
 
-### 5. Arsitektur API Cepat & Zero-Memory Overhead
-- **Server-Side Lookup**: Pengolahan file kamus raksasa (1 GB+ ZIP) diproses via API `/api/dictionary/lookup` dalam hitungan milidetik (`< 5ms`).
-- **Performa Ringan**: Memori browser tetap bersih dan responsif (60 FPS) tanpa membebankan RAM perangkat.
+### 5. Server-Side Dictionary Architecture
+- **Server-Side Lookup**: Massive dictionary files (1 GB+ ZIP) are indexed and queried via the `/api/dictionary/lookup` API instead of loading them into the browser.
+- **Lightweight Client**: Keeps the browser's own memory footprint small, since dictionary data stays server-side rather than being held in page memory.
 
-### 6. Desain Responsif & Efek 3D Imersif
-- **Layout Adaptif**: Tampilan koleksi 2-kolom yang rapi di perangkat seluler dengan toolbar anti-overlap.
-- **Transisi View Transitions API**: Efek perpindahan halaman dan "buku terbang" yang mulus.
-- **Modal Preview 3D**: Animasi pratinjau buku 3D (*rotateY* & *scale zoom*) saat membuka novel dari rak buku.
+### 6. Responsive Design & Immersive 3D Effects
+- **Adaptive Layout**: A tidy 2-column library view on mobile devices with an overlap-free toolbar.
+- **View Transitions API**: Smooth page transitions and a "flying book" effect.
+- **3D Preview Modal**: 3D preview animation (*rotateY* & *scale zoom*) when opening a novel from the shelf.
 
-### 7. Privasi & Dukungan Offline
-- **Penyimpanan Lokal (IndexedDB)**: Seluruh file EPUB dan progres membaca tersimpan 100% di browser lokal pengguna. Tidak ada data yang diunggah ke server eksternal.
+### 7. Privacy & Offline Support
+- **Local Storage (IndexedDB)**: All EPUB files and reading progress are stored 100% in the user's local browser. No data is uploaded to any external server.
 
 ---
 
-## Langkah Memulai
+## Getting Started
 
-### Prasyarat
-- **Node.js**: v18.0.0 atau lebih baru
-- **Package Manager**: `npm`, `pnpm`, atau `yarn`
+### Prerequisites
+- **Node.js**: v18.0.0 or newer
+- **Package Manager**: `npm`, `pnpm`, or `yarn`
 
-### Instalasi Local Development
+### Local Development Setup
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/kaisaaru/kotoba-reader.git
-cd kotoba-reader
+# 1. Clone the repository
+git clone https://github.com/kaisaaru/kotori.git
+cd kotori
 
 # 2. Install dependencies
 npm install
 
-# 3. Jalankan development server
+# 3. Run the development server
 npm run dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000) pada browser Anda.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Struktur Proyek
+## Project Structure
 
 ```text
-kotoba-reader/
-├── public/                 # Asset statis (logo, icon)
+kotori/
+├── public/                 # Static assets (logo, icon)
 ├── src/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── dictionary/
 │   │   │       └── lookup/ # Server-side Yomitan lookup API & indexer
-│   │   ├── reader/[bookId]/# Halaman pembaca novel (Reader View)
-│   │   ├── globals.css     # Design tokens, tema, & animasi 3D
+│   │   ├── reader/[bookId]/# Novel reader page (Reader View)
+│   │   ├── globals.css     # Design tokens, themes, & 3D animations
 │   │   ├── layout.tsx      # Root Layout
 │   │   └── page.tsx        # Library / Home Page
 │   ├── components/
 │   │   └── reader/
-│   │       ├── SelectionPopup.tsx      # Pop-up kamus & kontrol TTS
-│   │       ├── ReaderSettingsPanel.tsx # Panel opsi tampilan baca
-│   │       └── TableOfContents.tsx     # Navigasi bab novel
+│   │       ├── SelectionPopup.tsx      # Dictionary pop-up & TTS controls
+│   │       ├── ReaderSettingsPanel.tsx # Reading display options panel
+│   │       └── TableOfContents.tsx     # Novel chapter navigation
 │   ├── services/
-│   │   ├── book-storage.ts       # Service IndexedDB untuk buku & progres
+│   │   ├── book-storage.ts       # IndexedDB service for books & progress
 │   │   ├── dictionary-service.ts # Client lookup service & cache
-│   │   └── epub-parser.ts        # Parser & extractor file EPUB
+│   │   └── epub-parser.ts        # EPUB file parser & extractor
 │   ├── stores/
 │   │   └── reader-store.ts       # State management (Zustand)
 │   └── types/
@@ -113,16 +116,28 @@ kotoba-reader/
 
 ---
 
-## Deployment
+## Known Issues
 
-Aplikasi ini siap di-deploy ke **Vercel** atau platform hosting Node.js / Next.js lainnya:
+Kotori is under active development. A few known rough edges:
 
-1. Push repository ke GitHub.
-2. Import repository di [Vercel Dashboard](https://vercel.com).
-3. Build command secara otomatis terdeteksi untuk Next.js App Router.
+- **Dictionary lookup bugs**: some words/phrases can still return incorrect or missing matches.
+- **Slow dictionary loading**: the dictionary index can take a while to load on first use, especially with large or many dictionaries loaded.
+
+Bug reports and PRs are welcome.
 
 ---
 
-## Lisensi
+## Credits & Acknowledgments
 
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
+Kotori was built with reference to the following open-source projects:
+
+- **[Yomitan](https://github.com/yomidevs/yomitan)** (GPL-3.0) — Kotori follows Yomitan's dictionary format (ZIP + JSON) for compatibility with the community's existing dictionary collections, and some pop-up UX defaults (size & offset) were inspired by Yomitan. Kotori's Japanese verb de-inflection table ([src/lib/japanese/deinflector.ts](src/lib/japanese/deinflector.ts)) is independently derived from standard Godan/Ichidan grammar, not copied from Yomitan's rule table.
+- **[ebook-reader (ttu-ttu)](https://github.com/ttu-ttu/ebook-reader)** (BSD-3-Clause) — several techniques on the reader page ([src/app/reader/[bookId]/page.tsx](<src/app/reader/[bookId]/page.tsx>)), such as handling scroll-position sign in vertical text mode and guard timing when restoring reading position, were conceptually adapted from ebook-reader, implemented with independently written code.
+
+Thanks to the maintainers and contributors of both projects.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
