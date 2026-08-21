@@ -1731,6 +1731,7 @@ export default function ReaderPage() {
 
       {/* ===== Bottom Bar ===== */}
       <div
+        className="kb-reader-bottom-bar"
         style={{
           position: "absolute",
           bottom: 0,
@@ -1773,7 +1774,7 @@ export default function ReaderPage() {
           <ChevronLeft style={{ width: "16px", height: "16px" }} />
         </button>
 
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "16px", padding: "0 24px" }}>
+        <div className="kb-reader-bottom-inner" style={{ flex: 1, display: "flex", alignItems: "center", gap: "16px", padding: "0 24px" }}>
           <div style={{ flex: 1, height: "6px", borderRadius: "3px", backgroundColor: "var(--kb-border)", overflow: "hidden" }}>
             <div
               style={{
@@ -1954,7 +1955,7 @@ export default function ReaderPage() {
           />
           <span>
             Menyiapkan kamus
-            {dictStatus.totalTerms > 0 ? ` — ${dictStatus.totalTerms.toLocaleString("id-ID")} entri` : "..."}
+            {dictStatus.totalTerms > 0 ? `: ${dictStatus.totalTerms.toLocaleString("id-ID")} entri` : "..."}
           </span>
         </div>
       )}

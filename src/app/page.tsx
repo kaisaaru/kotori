@@ -339,37 +339,41 @@ export default function HomePage() {
   const [resetConfirm, setResetConfirm] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [toast, setToast] = useState<{
+  const [toasts, setToasts] = useState<Array<{
+    id: number;
     message: string;
     type: "success" | "error" | "delete" | "reset";
-  } | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastAnimatingOut, setToastAnimatingOut] = useState(false);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    animatingOut: boolean;
+  }>>([]);
+  const toastIdRef = useRef(0);
+  const toastTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  const dismissToast = useCallback(() => {
-    setToastAnimatingOut(true);
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, animatingOut: true } : t)));
     setTimeout(() => {
-      setToastVisible(false);
-      setToast(null);
-      setToastAnimatingOut(false);
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 300);
   }, []);
 
   const showToast = useCallback((message: string, type: "success" | "error" | "delete" | "reset" = "success") => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, type });
-    setToastVisible(true);
-    setToastAnimatingOut(false);
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message, type, animatingOut: false }]);
 
-    toastTimerRef.current = setTimeout(() => {
-      dismissToast();
+    const timer = setTimeout(() => {
+      dismissToast(id);
     }, 4000);
+    toastTimersRef.current.set(id, timer);
   }, [dismissToast]);
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+      toastTimersRef.current.clear();
     };
   }, []);
 
@@ -1369,7 +1373,7 @@ export default function HomePage() {
           >
             <div
               style={{
-                backgroundColor: "#ffffff",
+                backgroundColor: "var(--kb-surface)",
                 borderRadius: "20px",
                 padding: "32px 24px",
                 boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
@@ -1388,7 +1392,7 @@ export default function HomePage() {
                   width: "48px",
                   height: "48px",
                   borderRadius: "50%",
-                  border: "4px solid #f1f5f9",
+                  border: "4px solid var(--kb-border)",
                   borderTopColor: "var(--kb-primary)",
                 }}
                 className="animate-spin"
@@ -1397,7 +1401,7 @@ export default function HomePage() {
                 style={{
                   fontSize: "14px",
                   fontWeight: 700,
-                  color: "#334155",
+                  color: "var(--kb-text)",
                   textAlign: "center",
                   margin: 0,
                   wordBreak: "break-word",
@@ -1411,54 +1415,59 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Toast Notification */}
-        {toastVisible && toast && (
-          <div
-            className="kb-toast"
-            style={{
-              animation: toastAnimatingOut
-                ? "toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards"
-                : "toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-            }}
-          >
-            {toast.type === "success" && (
-              <CheckCircle2 style={{ width: "18px", height: "18px", color: "#3b82f6", flexShrink: 0 }} />
-            )}
-            {toast.type === "delete" && (
-              <Trash2 style={{ width: "18px", height: "18px", color: "#ef4444", flexShrink: 0 }} />
-            )}
-            {toast.type === "reset" && (
-              <RotateCcw style={{ width: "18px", height: "18px", color: "#64748b", flexShrink: 0 }} />
-            )}
-            {toast.type === "error" && (
-              <AlertTriangle style={{ width: "18px", height: "18px", color: "#f59e0b", flexShrink: 0 }} />
-            )}
-            <span style={{ flex: 1, wordBreak: "break-word" }}>{toast.message}</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissToast();
-              }}
-              className="kb-toast-close"
-              title="Close notification"
-            >
-              <X style={{ width: "14px", height: "14px", strokeWidth: 2 }} />
-            </button>
+        {/* Toast Notification Stack */}
+        {toasts.length > 0 && (
+          <div className="kb-toast-stack">
+            {toasts.map((toastItem) => (
+              <div
+                key={toastItem.id}
+                className="kb-toast"
+                style={{
+                  animation: toastItem.animatingOut
+                    ? "toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards"
+                    : "toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                }}
+              >
+                {toastItem.type === "success" && (
+                  <CheckCircle2 style={{ width: "18px", height: "18px", color: "#3b82f6", flexShrink: 0 }} />
+                )}
+                {toastItem.type === "delete" && (
+                  <Trash2 style={{ width: "18px", height: "18px", color: "#ef4444", flexShrink: 0 }} />
+                )}
+                {toastItem.type === "reset" && (
+                  <RotateCcw style={{ width: "18px", height: "18px", color: "#64748b", flexShrink: 0 }} />
+                )}
+                {toastItem.type === "error" && (
+                  <AlertTriangle style={{ width: "18px", height: "18px", color: "#f59e0b", flexShrink: 0 }} />
+                )}
+                <span style={{ flex: 1, wordBreak: "break-word" }}>{toastItem.message}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissToast(toastItem.id);
+                  }}
+                  className="kb-toast-close"
+                  title="Close notification"
+                >
+                  <X style={{ width: "14px", height: "14px", strokeWidth: 2 }} />
+                </button>
 
-            {/* Bottom Progress Loading Bar */}
-            <div
-              className="kb-toast-progress"
-              style={{
-                backgroundColor:
-                  toast.type === "success"
-                    ? "#3b82f6"
-                    : toast.type === "delete"
-                    ? "#ef4444"
-                    : toast.type === "reset"
-                    ? "#64748b"
-                    : "#facc15",
-              }}
-            />
+                {/* Bottom Progress Loading Bar */}
+                <div
+                  className="kb-toast-progress"
+                  style={{
+                    backgroundColor:
+                      toastItem.type === "success"
+                        ? "#3b82f6"
+                        : toastItem.type === "delete"
+                        ? "#ef4444"
+                        : toastItem.type === "reset"
+                        ? "#64748b"
+                        : "#facc15",
+                  }}
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -1963,6 +1972,7 @@ export default function HomePage() {
                           <button
                             key={cat}
                             onClick={() => setFeedbackCategory(cat)}
+                            className="kb-feedback-category-btn"
                             style={{
                               flex: 1,
                               display: "inline-flex",
