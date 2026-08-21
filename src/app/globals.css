@@ -291,7 +291,7 @@ body {
     min-height: 60px;
     flex-wrap: wrap;
     align-items: center;
-    justifyContent: space-between !important;
+    justify-content: space-between !important;
     gap: 8px !important;
   }
 
@@ -354,6 +354,15 @@ body {
     margin-left: 6px !important;
     gap: 6px !important;
   }
+
+  .kb-reader-bottom-bar {
+    padding: 0 16px !important;
+  }
+
+  .kb-reader-bottom-inner {
+    gap: 10px !important;
+    padding: 0 12px !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -365,22 +374,70 @@ body {
   .kb-add-button-text {
     display: none !important;
   }
+
+  .kb-feedback-overlay {
+    padding: 12px !important;
+  }
+
+  .kb-feedback-content {
+    padding: 24px 20px 20px !important;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+  }
+
+  .kb-feedback-category-btn {
+    flex-direction: column !important;
+    padding: 8px 4px !important;
+    gap: 4px !important;
+    font-size: 10.5px !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+  }
+}
+
+/* Reader Toolbar - narrow phones (budget/older Android widths) */
+@media (max-width: 400px) {
+  .kb-reader-chapter-pill {
+    margin: 0 4px !important;
+    padding: 3px 6px !important;
+  }
+
+  .kb-reader-chapter-text {
+    max-width: 52px !important;
+  }
+
+  .kb-reader-right-section {
+    gap: 4px !important;
+  }
+
+  .kb-reader-right-section button {
+    width: 32px !important;
+    height: 32px !important;
+  }
 }
 
 /* ===== Toast Notification ===== */
-.kb-toast {
+.kb-toast-stack {
   position: fixed;
   top: 84px;
   right: 24px;
   z-index: 110;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.kb-toast {
+  position: relative;
   padding: 14px 18px 16px 18px;
   border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.88);
+  background-color: var(--kb-toolbar-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: #334155;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  color: var(--kb-text);
+  border: 1px solid var(--kb-border);
+  box-shadow: var(--kb-card-shadow-hover);
   font-size: 13px;
   font-weight: 600;
   display: flex;
@@ -390,24 +447,26 @@ body {
   width: max-content;
   overflow: hidden;
   pointer-events: auto;
+  margin-left: auto;
 }
 
 .kb-toast-close {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--kb-text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
   display: flex;
   align-items: center;
-  justifyContent: center;
+  justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
 .kb-toast-close:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--kb-border);
+  color: var(--kb-text);
 }
 
 .kb-toast-progress {
@@ -420,12 +479,16 @@ body {
 }
 
 @media (max-width: 640px) {
-  .kb-toast {
+  .kb-toast-stack {
     right: 16px;
     left: 16px;
-    max-width: calc(100% - 32px);
-    width: auto;
     top: 80px;
+  }
+
+  .kb-toast {
+    max-width: 100%;
+    width: auto;
+    margin-left: 0;
   }
 }
 

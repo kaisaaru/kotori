@@ -4,11 +4,11 @@
 
 # Kotoba Reader AI
 
-**Kotoba Reader AI** (Kotori) — An All-in-One, Fast, and Immersive Platform for Reading Japanese Light Novels & Web Novels.
+**Kotoba Reader AI** (Kotori): An All-in-One, Fast, and Immersive Platform for Reading Japanese Light Novels & Web Novels.
 
-**[🚀 Live Demo — kotoriai.vercel.app](https://kotoriai.vercel.app)**
+**[🚀 Live Demo: readkotori.vercel.app](https://readkotori.vercel.app)**
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-kotoriai.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://kotoriai.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-readkotori.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://readkotori.vercel.app)
 [![Next.js](https://img.shields.io/badge/Next.js-16_App_Router-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -34,7 +34,7 @@ Kotoba Reader AI is purpose-built to deliver an authentic Japanese novel (*EPUB*
 - **Full Customization**: Font size, line height, layout margins, and theme options (*Dark, Light, Sepia*).
 
 ### 2. Yomitan-Style Pop-Up Dictionary (*Block-Text Selection*)
-- **Auto-Lookup**: Simply highlight a word or sentence — on desktop or touchscreen — to open the dictionary pop-up instantly.
+- **Auto-Lookup**: Simply highlight a word or sentence (on desktop or touchscreen) to open the dictionary pop-up instantly.
 - **Multi-Dictionary Integration**: Connects to **JIDict (Indonesian)**, **Jitendex (English)**, **三省堂国語辞典**, **NHK Pitch Accent**, and **JLPT Level Badges**.
 - **Yomitan AST Parser**: Renders Yomitan's structured JSON content into clean, readable definitions.
 
@@ -131,8 +131,8 @@ Bug reports and PRs are welcome.
 
 Kotori was built with reference to the following open-source projects:
 
-- **[Yomitan](https://github.com/yomidevs/yomitan)** (GPL-3.0) — Kotori follows Yomitan's dictionary format (ZIP + JSON) for compatibility with the community's existing dictionary collections, and some pop-up UX defaults (size & offset) were inspired by Yomitan. Kotori's Japanese verb de-inflection table ([src/lib/japanese/deinflector.ts](src/lib/japanese/deinflector.ts)) is independently derived from standard Godan/Ichidan grammar, not copied from Yomitan's rule table.
-- **[ebook-reader (ttu-ttu)](https://github.com/ttu-ttu/ebook-reader)** (BSD-3-Clause) — several techniques on the reader page ([src/app/reader/[bookId]/page.tsx](<src/app/reader/[bookId]/page.tsx>)), such as handling scroll-position sign in vertical text mode and guard timing when restoring reading position, were conceptually adapted from ebook-reader, implemented with independently written code.
+- **[Yomitan](https://github.com/yomidevs/yomitan)** (GPL-3.0): Kotori follows Yomitan's dictionary format (ZIP + JSON) for compatibility with the community's existing dictionary collections, and some pop-up UX defaults (size & offset) were inspired by Yomitan. Kotori's Japanese verb de-inflection table ([src/lib/japanese/deinflector.ts](src/lib/japanese/deinflector.ts)) is independently derived from standard Godan/Ichidan grammar, not copied from Yomitan's rule table.
+- **[ebook-reader (ttu-ttu)](https://github.com/ttu-ttu/ebook-reader)** (BSD-3-Clause): several techniques on the reader page ([src/app/reader/[bookId]/page.tsx](<src/app/reader/[bookId]/page.tsx>)), such as handling scroll-position sign in vertical text mode and guard timing when restoring reading position, were conceptually adapted from ebook-reader, implemented with independently written code.
 
 Thanks to the maintainers and contributors of both projects.
 
