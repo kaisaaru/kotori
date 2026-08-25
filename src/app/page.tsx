@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { flushSync } from "react-dom";
 import {
   BookOpen,
@@ -27,8 +28,7 @@ import {
   Send,
   MessageSquare,
 } from "lucide-react";
-import { parseEpub } from "@/services/epub-parser";
-import { DictionarySearchModal } from "@/components/DictionarySearchModal";
+import dynamic from "next/dynamic";
 import {
   getAllBooks,
   saveBook,
@@ -43,6 +43,14 @@ import type { BookMeta, ReadingProgress, Chapter } from "@/types/book";
 import { getSystemTheme } from "@/types/book";
 import { Footer } from "@/components/Footer";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
+
+// Deferred out of the initial bundle - most page loads never open the search modal or upload a
+// book, so their code (plus dictionary-service.ts / jszip+dompurify respectively) shouldn't ship
+// on every visit.
+const DictionarySearchModal = dynamic(
+  () => import("@/components/DictionarySearchModal").then((m) => m.DictionarySearchModal),
+  { ssr: false }
+);
 
 /* ===== Scroll Reveal Wrapper ===== */
 function RevealSection({
@@ -386,6 +394,7 @@ export default function HomePage() {
     for (const file of epubFiles) {
       try {
         setUploadProgress(t.uploadReading(truncate(file.name, 35)));
+        const { parseEpub } = await import("@/services/epub-parser");
         const { book, chapters } = await parseEpub(file);
 
         const exists = updatedBooks.some(
@@ -729,12 +738,13 @@ export default function HomePage() {
               }}
             />
             {/* Inner icon */}
-            <img
+            <Image
               src="/icon.png"
               alt="Loading"
+              width={60}
+              height={60}
+              priority
               style={{
-                width: "60px",
-                height: "60px",
                 objectFit: "contain",
                 animation: "pulse 2s ease-in-out infinite",
                 position: "relative",
