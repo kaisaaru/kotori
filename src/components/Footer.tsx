@@ -24,20 +24,10 @@ const FOOTER_TRANSLATIONS = {
     createdBy: "Created by",
     forLearners: "for Light Novel Readers & Japanese Learners.",
   },
-  JP: {
-    description: "Yomitan辞書統合、自動形態素解析、TTS音声朗読を備えた本格派日本語ライトノベル＆ウェブ小説リーダー。",
-    highlightsTitle: "プラットフォームの特徴",
-    privacyText: "100% プライバシー保護（IndexedDBローカル保存）",
-    verticalText: "縦書き表示＆TTS音声朗読対応",
-    techTitle: "使用技術",
-    copyright: `© ${new Date().getFullYear()} Kotori. 全著作権所有。`,
-    createdBy: "作成者：",
-    forLearners: "ライトノベル読者＆日本語学習者のために。",
-  },
 };
 
 interface FooterProps {
-  language?: "ID" | "EN" | "JP";
+  language?: "ID" | "EN";
 }
 
 export function Footer({ language = "ID" }: FooterProps) {

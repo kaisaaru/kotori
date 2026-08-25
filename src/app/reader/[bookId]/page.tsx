@@ -27,7 +27,7 @@ import {
   saveSettings,
 } from "@/services/book-storage";
 import type { Chapter as ChapterType } from "@/types/book";
-import { MARGIN_VALUES, READER_WIDTH_VALUES } from "@/types/book";
+import { MARGIN_VALUES, READER_WIDTH_VALUES, getSystemTheme } from "@/types/book";
 import ReaderSettingsPanel from "@/components/reader/ReaderSettingsPanel";
 import TableOfContents from "@/components/reader/TableOfContents";
 import { SelectionPopup } from "@/components/reader/SelectionPopup";
@@ -259,6 +259,18 @@ export default function ReaderPage() {
   // never paint over the header or toolbar. Refreshed whenever the overlays are.
   const [overlayClip, setOverlayClip] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [isBookmarked, setIsBookmarked] = useState(false);
+  // Mirrors the home page's language switcher (localStorage "kotoba-language") - read-only here,
+  // no switcher in the reader itself.
+  const [language, setLanguage] = useState<"ID" | "EN">("EN");
+  useEffect(() => {
+    const savedLang = localStorage.getItem("kotoba-language");
+    if (savedLang === "ID" || savedLang === "EN") {
+      setLanguage(savedLang);
+    } else {
+      const browserLang = navigator.language || navigator.languages?.[0] || "";
+      setLanguage(browserLang.toLowerCase().startsWith("id") ? "ID" : "EN");
+    }
+  }, []);
   const toolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Coordination refs for dictionary-lookup vs. toolbar-toggle vs. drag-selection gestures
@@ -635,7 +647,7 @@ export default function ReaderPage() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", settings.theme);
     return () => {
-      const savedTheme = localStorage.getItem("kotoba-theme") || "dark";
+      const savedTheme = localStorage.getItem("kotoba-theme") || getSystemTheme();
       document.documentElement.setAttribute("data-theme", savedTheme);
     };
   }, [settings.theme]);
@@ -1368,7 +1380,7 @@ export default function ReaderPage() {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)")}
-            title="Back to Library"
+            title={language === "ID" ? "Kembali ke Perpustakaan" : "Back to Library"}
           >
             <ArrowLeft style={{ width: "16px", height: "16px" }} />
           </button>
@@ -1446,7 +1458,7 @@ export default function ReaderPage() {
               flexShrink: 0,
               transition: "all 0.2s ease",
             }}
-            title="Simpan Bookmark Halaman Ini"
+            title={language === "ID" ? "Simpan Bookmark Halaman Ini" : "Save Bookmark on This Page"}
           >
             {isBookmarked ? (
               <BookmarkCheck style={{ width: "16px", height: "16px", fill: "var(--kb-primary)" }} />
@@ -1471,7 +1483,7 @@ export default function ReaderPage() {
               flexShrink: 0,
               transition: "all 0.2s ease",
             }}
-            title="Table of Contents"
+            title={language === "ID" ? "Daftar Isi" : "Table of Contents"}
           >
             <List style={{ width: "16px", height: "16px" }} />
           </button>
@@ -1491,7 +1503,7 @@ export default function ReaderPage() {
               flexShrink: 0,
               transition: "all 0.2s ease",
             }}
-            title="Settings"
+            title={language === "ID" ? "Pengaturan" : "Settings"}
           >
             <Settings style={{ width: "16px", height: "16px" }} />
           </button>
@@ -1978,6 +1990,7 @@ export default function ReaderPage() {
           settings={settings}
           onSettingsChange={setSettings}
           onClose={() => setSettingsOpen(false)}
+          language={language}
         />
       )}
 
