@@ -86,6 +86,7 @@ export default function TableOfContents({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               width: "32px",
               height: "32px",

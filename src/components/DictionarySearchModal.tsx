@@ -71,6 +71,7 @@ export function DictionarySearchModal({ isOpen, onClose, language = "ID" }: Dict
         {/* Close button */}
         <button
           onClick={onClose}
+          aria-label={language === "ID" ? "Tutup" : "Close"}
           style={{
             position: "absolute",
             top: "18px",
