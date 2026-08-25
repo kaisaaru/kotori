@@ -833,12 +833,13 @@ export default function HomePage() {
             }}
             onClick={() => router.push("/")}
           >
-            <img
+            <Image
               src="/icon.png"
               alt="Kotori"
+              width={36}
+              height={36}
+              priority
               style={{
-                width: "36px",
-                height: "36px",
                 objectFit: "contain",
                 flexShrink: 0,
               }}
@@ -1160,12 +1161,12 @@ export default function HomePage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <img
+                <Image
                   src="/icon.png"
                   alt="Kotori"
+                  width={32}
+                  height={32}
                   style={{
-                    width: "32px",
-                    height: "32px",
                     objectFit: "contain",
                     flexShrink: 0,
                   }}

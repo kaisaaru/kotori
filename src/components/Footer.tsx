@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { BookOpen, ShieldCheck, Zap, Sparkles } from "lucide-react";
 
 const FOOTER_TRANSLATIONS = {
@@ -64,12 +65,12 @@ export function Footer({ language = "ID" }: FooterProps) {
           {/* Brand & Tagline */}
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <img
+              <Image
                 src="/icon.png"
                 alt="Kotori"
+                width={32}
+                height={32}
                 style={{
-                  width: "32px",
-                  height: "32px",
                   objectFit: "contain",
                   flexShrink: 0,
                 }}
