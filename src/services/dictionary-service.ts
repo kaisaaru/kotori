@@ -8,10 +8,17 @@ export interface DictDefinition {
   tags?: string[];
   rules?: string;
   score?: number;
-  pitch?: string;
-  frequency?: number;
   jlpt?: string;
   deinflectionRules?: string[];
+  // One representative example sentence (Japanese with inline "漢字[かんじ]" furigana markup, plus
+  // its translation), extracted from the dictionary's own structured-content instead of stripped.
+  example?: { japanese: string; translation: string };
+  // Alternate spellings/forms for the same word (e.g. その日 / 其の日).
+  forms?: string[];
+  // Per-dictionary frequency rank (lower = more common), from term_meta_bank "freq" data (e.g. JPDB).
+  frequency?: { dictName: string; rank: number; display: string }[];
+  // NHK-style pitch accent drop position (mora index, 0 = heiban/flat).
+  pitchPosition?: number;
 }
 
 export interface KanjiDetail {
