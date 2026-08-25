@@ -1793,6 +1793,7 @@ export default function ReaderPage() {
         <button
           onClick={(e) => { e.stopPropagation(); goPrevChapter(); }}
           disabled={currentChapterIndex === 0}
+          aria-label={language === "ID" ? "Bab Sebelumnya" : "Previous Chapter"}
           style={{
             width: "36px",
             height: "36px",
@@ -1831,6 +1832,7 @@ export default function ReaderPage() {
         <button
           onClick={(e) => { e.stopPropagation(); goNextChapter(); }}
           disabled={currentChapterIndex === chapters.length - 1}
+          aria-label={language === "ID" ? "Bab Berikutnya" : "Next Chapter"}
           style={{
             width: "36px",
             height: "36px",

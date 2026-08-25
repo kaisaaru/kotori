@@ -102,6 +102,7 @@ const TRANSLATIONS = {
     bookAdded: (title: string) => `Novel "${title}" berhasil ditambahkan!`,
     uploadReading: (filename: string) => `Membaca "${filename}"...`,
     uploadSaving: (title: string) => `Menyimpan "${title}" ke perpustakaan...`,
+    optionsMenu: "Buka Menu Opsi",
     resetProgress: "Reset Kemajuan",
     progressReset: (title: string) => `Kemajuan membaca "${title}" berhasil di-reset.`,
     resetConfirmTitle: "Reset Kemajuan Membaca",
@@ -154,6 +155,7 @@ const TRANSLATIONS = {
     bookAdded: (title: string) => `Novel "${title}" added successfully!`,
     uploadReading: (filename: string) => `Reading "${filename}"...`,
     uploadSaving: (title: string) => `Saving "${title}" to library...`,
+    optionsMenu: "Open Options Menu",
     resetProgress: "Reset Progress",
     progressReset: (title: string) => `Reading progress for "${title}" has been reset.`,
     resetConfirmTitle: "Reset Reading Progress",
@@ -1165,6 +1167,7 @@ export default function HomePage() {
 
               <button
                 onClick={closeMobileMenu}
+                aria-label={language === "ID" ? "Tutup Menu" : "Close Menu"}
                 style={{
                   width: "32px",
                   height: "32px",
@@ -1913,6 +1916,7 @@ export default function HomePage() {
                   {/* Close button */}
                   <button
                     onClick={() => setShowFeedbackModal(false)}
+                    aria-label={language === "ID" ? "Tutup" : "Close"}
                     style={{
                       position: "absolute",
                       top: "18px",
@@ -3078,6 +3082,7 @@ function BookCard({
               e.stopPropagation();
               setShowMenu(!showMenu);
             }}
+            aria-label={t.optionsMenu}
             style={{
               width: "32px",
               height: "32px",

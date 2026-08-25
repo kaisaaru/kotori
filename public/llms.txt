@@ -1,0 +1,17 @@
+# Kotori
+
+> Kotori is a free, all-in-one Japanese reading platform. Upload EPUB novels and light novels, then read with a built-in Japanese dictionary, instant word lookup, furigana, and grammar breakdown - no need to switch to a separate tool like Yomitan.
+
+## Features
+- EPUB reader with tap/click-to-look-up Japanese dictionary integration (JMdict-format dictionaries, KANJIDIC, JLPT tagging, frequency and pitch-accent data)
+- Standalone dictionary search - type any Japanese word, kanji, or phrase without opening a book
+- Example sentences, alternate word forms, frequency ranking, and pitch accent shown per word
+- Text-to-speech pronunciation
+- Adjustable reading settings: font, size, line height, theme
+
+## Pages
+- [Home](https://readkotori.vercel.app/): library and book upload
+- [Reader](https://readkotori.vercel.app/reader/): EPUB reading view with dictionary lookup
+
+## Source
+- [GitHub repository](https://github.com/kaisaaru/kotori)

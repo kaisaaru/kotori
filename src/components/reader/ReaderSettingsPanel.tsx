@@ -122,6 +122,7 @@ export default function ReaderSettingsPanel({
           </div>
           <button
             onClick={onClose}
+            aria-label={language === "ID" ? "Tutup" : "Close"}
             style={{
               width: "32px",
               height: "32px",
@@ -324,6 +325,8 @@ export default function ReaderSettingsPanel({
               onDecrement={() => onSettingsChange({ fontSize: Math.max(12, settings.fontSize - 1) })}
               onIncrement={() => onSettingsChange({ fontSize: Math.min(36, settings.fontSize + 1) })}
               onChange={(v) => onSettingsChange({ fontSize: v })}
+              decrementLabel={language === "ID" ? "Kurangi Ukuran Font" : "Decrease Font Size"}
+              incrementLabel={language === "ID" ? "Tambah Ukuran Font" : "Increase Font Size"}
             />
           </SettingSection>
 
@@ -343,6 +346,8 @@ export default function ReaderSettingsPanel({
                 onSettingsChange({ lineHeight: Math.min(3.0, +(settings.lineHeight + 0.1).toFixed(1)) })
               }
               onChange={(v) => onSettingsChange({ lineHeight: +v.toFixed(1) })}
+              decrementLabel={language === "ID" ? "Kurangi Tinggi Baris" : "Decrease Line Height"}
+              incrementLabel={language === "ID" ? "Tambah Tinggi Baris" : "Increase Line Height"}
             />
           </SettingSection>
 
@@ -806,6 +811,8 @@ function SliderControl({
   onDecrement,
   onIncrement,
   onChange,
+  decrementLabel = "Decrease value",
+  incrementLabel = "Increase value",
 }: {
   value: number;
   min: number;
@@ -816,6 +823,8 @@ function SliderControl({
   onDecrement: () => void;
   onIncrement: () => void;
   onChange: (v: number) => void;
+  decrementLabel?: string;
+  incrementLabel?: string;
 }) {
   return (
     <div
@@ -831,6 +840,7 @@ function SliderControl({
     >
       <button
         onClick={onDecrement}
+        aria-label={decrementLabel}
         style={{
           width: "32px",
           height: "32px",
@@ -869,6 +879,7 @@ function SliderControl({
 
       <button
         onClick={onIncrement}
+        aria-label={incrementLabel}
         style={{
           width: "32px",
           height: "32px",

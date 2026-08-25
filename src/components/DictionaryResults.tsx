@@ -469,6 +469,7 @@ export function DictionaryResults({
 
           <button
             onClick={onClose}
+            aria-label="Tutup"
             style={{
               borderRadius: "50%",
               width: "32px",
