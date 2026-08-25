@@ -13,7 +13,9 @@ import {
   X,
   Bookmark,
   BookmarkCheck,
+  Search,
 } from "lucide-react";
+import { DictionarySearchModal } from "@/components/DictionarySearchModal";
 import { useReaderStore } from "@/stores/reader-store";
 import { useDictionaryStore } from "@/stores/dictionary-store";
 import {
@@ -259,6 +261,7 @@ export default function ReaderPage() {
   // never paint over the header or toolbar. Refreshed whenever the overlays are.
   const [overlayClip, setOverlayClip] = useState({ top: 0, left: 0, width: 0, height: 0 });
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [showDictionarySearch, setShowDictionarySearch] = useState(false);
   // Mirrors the home page's language switcher (localStorage "kotoba-language") - read-only here,
   // no switcher in the reader itself.
   const [language, setLanguage] = useState<"ID" | "EN">("EN");
@@ -1384,6 +1387,28 @@ export default function ReaderPage() {
           >
             <ArrowLeft style={{ width: "16px", height: "16px" }} />
           </button>
+          <button
+            onClick={() => setShowDictionarySearch(true)}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "var(--kb-bg-secondary)",
+              border: "1px solid var(--kb-border)",
+              color: "var(--kb-text)",
+              cursor: "pointer",
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)")}
+            title={language === "ID" ? "Cari Kamus" : "Dictionary Search"}
+          >
+            <Search style={{ width: "16px", height: "16px" }} />
+          </button>
           <p
             className="kb-reader-book-title"
             style={{
@@ -2007,6 +2032,13 @@ export default function ReaderPage() {
           onClose={() => setTocOpen(false)}
         />
       )}
+
+      {/* ===== Dictionary Search Modal ===== */}
+      <DictionarySearchModal
+        isOpen={showDictionarySearch}
+        onClose={() => setShowDictionarySearch(false)}
+        language={language}
+      />
     </div>
   );
 }

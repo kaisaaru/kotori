@@ -28,6 +28,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { parseEpub } from "@/services/epub-parser";
+import { DictionarySearchModal } from "@/components/DictionarySearchModal";
 import {
   getAllBooks,
   saveBook,
@@ -247,6 +248,7 @@ export default function HomePage() {
 
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showDictionarySearch, setShowDictionarySearch] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<"idea" | "bug" | "love">("idea");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackContact, setFeedbackContact] = useState("");
@@ -883,6 +885,30 @@ export default function HomePage() {
               flexShrink: 0,
             }}
           >
+            {/* Dictionary Search Button */}
+            <button
+              onClick={() => setShowDictionarySearch(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "36px",
+                height: "36px",
+                borderRadius: "12px",
+                backgroundColor: "var(--kb-bg-secondary)",
+                color: "var(--kb-text)",
+                border: "1px solid var(--kb-border)",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)")}
+              title={language === "ID" ? "Cari Kamus" : "Dictionary Search"}
+            >
+              <Search style={{ width: "16px", height: "16px" }} />
+            </button>
+
             {/* Feedback Button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -1158,6 +1184,30 @@ export default function HomePage() {
 
             {/* Menu Sections */}
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Dictionary Search Action */}
+              <button
+                onClick={() => {
+                  setShowDictionarySearch(true);
+                  closeMobileMenu();
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "12px",
+                  backgroundColor: "var(--kb-bg-secondary)",
+                  border: "1px solid var(--kb-border)",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: "var(--kb-text)",
+                  cursor: "pointer",
+                }}
+              >
+                <Search style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
+                <span>{language === "ID" ? "Cari Kamus" : "Dictionary Search"}</span>
+              </button>
+
               {/* Bahasa Section */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <label style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--kb-text-secondary)", textTransform: "uppercase" }}>
@@ -2031,6 +2081,13 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
+
+              {/* Dictionary Search Modal */}
+              <DictionarySearchModal
+                isOpen={showDictionarySearch}
+                onClose={() => setShowDictionarySearch(false)}
+                language={language}
+              />
 
               {/* Delete Confirmation Modal */}
       {deleteConfirm && (() => {

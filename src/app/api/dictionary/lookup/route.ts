@@ -12,9 +12,12 @@ interface ServerTerm {
   tags?: string[];
   rules?: string;
   score?: number;
-  pitch?: string;
   jlpt?: string;
   deinflectionRules?: string[];
+  example?: { japanese: string; translation: string };
+  forms?: string[];
+  frequency?: { dictName: string; rank: number; display: string }[];
+  pitchPosition?: number;
 }
 
 interface ServerKanji {
@@ -46,6 +49,11 @@ function buildReadingIndex() {
   }
 }
 
+// Blocks that add no value flattened into plain text (example sentences and forms aren't
+// extracted on this fallback path, but leaving them in the flat string is worse - they used to
+// run into the glossary text with no separator and get mangled by client-side cleanup heuristics).
+const FLATTEN_SKIP_MARKERS = new Set(["example-sentence", "forms", "attribution"]);
+
 // Recursively parse Yomitan Structured Content AST into clean text
 function parseStructuredNode(node: any): string {
   if (!node) return "";
@@ -57,6 +65,7 @@ function parseStructuredNode(node: any): string {
   }
 
   if (typeof node === "object") {
+    if (node.data && FLATTEN_SKIP_MARKERS.has(node.data.content)) return "";
     if (node.content) {
       return parseStructuredNode(node.content);
     }

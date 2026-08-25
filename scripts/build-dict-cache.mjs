@@ -2,6 +2,14 @@ import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
 
+// Blocks that are now extracted separately (extractExtras: example sentences, forms) or add no
+// reader value in a flat string (attribution links) - skipped here so they stop leaking into the
+// plain-text glossary, where they used to run together with no separator and get mangled by
+// formatMeaning's cleanup heuristics downstream (e.g. a sense-note's ";" getting misread as a
+// point separator, then the adjacent "forms" label text landing mid-sentence with nothing to mark
+// where the real definition ended).
+const FLATTEN_SKIP_MARKERS = new Set(["example-sentence", "forms", "attribution"]);
+
 function parseStructuredNode(node) {
   if (!node) return "";
   if (typeof node === "string") return node;
@@ -10,10 +18,149 @@ function parseStructuredNode(node) {
     return node.map(parseStructuredNode).filter(Boolean).join(" ");
   }
   if (typeof node === "object") {
+    if (node.data && FLATTEN_SKIP_MARKERS.has(node.data.content)) return "";
     if (node.content) return parseStructuredNode(node.content);
     if (node.text) return String(node.text);
   }
   return "";
+}
+
+// Reconstructs contiguous Japanese text from a structured-content node tree, rendering <ruby>
+// kanji/reading pairs as "{漢字|かんじ}" inline markup instead of dropping the furigana (which plain
+// parseStructuredNode does, since it only reads .content and never looks at ruby's <rt> sibling).
+// The {base|reading} braces are load-bearing, not decorative: plain kana sits between consecutive
+// rubies in real sentences (次[つぎ]の文[ぶん]...), and a bracket-only "base[reading]" format is
+// ambiguous to re-parse - a greedy "match runs of non-bracket text" regex on the client can't tell
+// where the previous ruby's trailing plain text ends and the next ruby's base begins, and ends up
+// swallowing that plain kana into the next base (rendered as e.g. "の文[ぶん]" instead of "の" then
+// "文[ぶん]"). Braces make the base's boundary explicit so the client parser can't misgroup it.
+function rubyToFuriganaString(node) {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(rubyToFuriganaString).join("");
+  if (typeof node === "object") {
+    if (node.tag === "ruby") {
+      const parts = Array.isArray(node.content) ? node.content : [node.content];
+      const base = parts.find((p) => typeof p === "string") || "";
+      const rt = parts.find((p) => p && typeof p === "object" && p.tag === "rt");
+      const reading = rt ? rubyToFuriganaString(rt.content) : "";
+      return reading ? `{${base}|${reading}}` : base;
+    }
+    if (node.tag === "rt") return ""; // only meaningful as a ruby child, handled above
+    if (node.content) return rubyToFuriganaString(node.content);
+  }
+  return "";
+}
+
+// Extracts just the translation text from an example-sentence-b block, skipping the numbered
+// "[1]" attribution-footnote span Jitendex attaches to each translation.
+function extractTranslationText(node) {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(extractTranslationText).join(" ").replace(/\s+/g, " ").trim();
+  if (typeof node === "object") {
+    if (node.data && node.data.content === "attribution-footnote") return "";
+    if (node.content) return extractTranslationText(node.content);
+  }
+  return "";
+}
+
+// Walks a structured-content tree looking for one example-sentence block (Yomitan/Jitendex mark
+// these via data.content === "example-sentence", with nested "example-sentence-a" for the
+// Japanese side and "example-sentence-b" for the translation). Returns the first one found, or
+// null - a dictionary entry showing every example it has gets cluttered fast, one is enough.
+function extractExampleFromNode(node) {
+  let found = null;
+  function walk(n) {
+    if (found || !n) return;
+    if (Array.isArray(n)) {
+      for (const child of n) walk(child);
+      return;
+    }
+    if (typeof n !== "object") return;
+    const marker = n.data && n.data.content;
+    if (marker === "example-sentence") {
+      let japanese = "";
+      let translation = "";
+      (function findParts(inner) {
+        if (!inner) return;
+        if (Array.isArray(inner)) {
+          inner.forEach(findParts);
+          return;
+        }
+        if (typeof inner !== "object") return;
+        const innerMarker = inner.data && inner.data.content;
+        if (innerMarker === "example-sentence-a") {
+          japanese = rubyToFuriganaString(inner.content).trim();
+        } else if (innerMarker === "example-sentence-b") {
+          translation = extractTranslationText(inner.content).trim();
+        } else if (inner.content) {
+          findParts(inner.content);
+        }
+      })(n.content);
+      if (japanese) found = { japanese, translation };
+      return;
+    }
+    if (n.content) walk(n.content);
+  }
+  walk(node);
+  return found;
+}
+
+// Collects alternate-spelling strings out of a structured-content "forms" block (a labeled <ul>
+// of <li> spelling variants). Two-phase on purpose: glossary blocks are ALSO plain <ul><li> lists,
+// so this must first locate a node explicitly marked data.content === "forms" and only harvest
+// <li> text from inside that specific subtree - walking the whole tree for any <li> would also
+// scoop up glossary definition points, which is a real bug this shape avoids.
+function collectFormsFromNode(node) {
+  const forms = [];
+  function collectListItems(n) {
+    if (!n) return;
+    if (Array.isArray(n)) {
+      n.forEach(collectListItems);
+      return;
+    }
+    if (typeof n !== "object") return;
+    if (n.tag === "li" && typeof n.content === "string") {
+      forms.push(n.content);
+      return;
+    }
+    if (n.data && n.data.content === "forms-label") return;
+    if (n.content) collectListItems(n.content);
+  }
+  function findFormsBlocks(n) {
+    if (!n) return;
+    if (Array.isArray(n)) {
+      n.forEach(findFormsBlocks);
+      return;
+    }
+    if (typeof n !== "object") return;
+    if (n.data && n.data.content === "forms") {
+      collectListItems(n.content);
+      return;
+    }
+    if (n.content) findFormsBlocks(n.content);
+  }
+  findFormsBlocks(node);
+  return forms;
+}
+
+// Single pass over a term's raw glossary node tree to pull out the extras that the plain-text
+// flatten (cleanMeaningString) discards: one example sentence and any alternate-spelling forms.
+// Kept fully separate from cleanMeaningString on purpose - reusing/rewriting that flatten path
+// risks regressing the plain-text glossary output for all ~400k terms, whereas this is additive.
+function extractExtras(rawMeanings) {
+  let example = null;
+  let forms = [];
+  const items = Array.isArray(rawMeanings) ? rawMeanings : [rawMeanings];
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    if (!example) example = extractExampleFromNode(item);
+    const foundForms = collectFormsFromNode(item);
+    if (foundForms.length > 0) forms = forms.concat(foundForms);
+  }
+  return { example, forms: Array.from(new Set(forms)) };
 }
 
 function cleanMeaningString(text) {
@@ -43,6 +190,11 @@ async function buildCache() {
 
   const termMap = new Map();
   const kanjiMap = new Map();
+  // term_meta_bank data (frequency rank / pitch accent) - separate shape from term_bank
+  // ([expression, mode, data], not the 6+-length term array), collected across all dictionaries
+  // and merged onto matching termMap entries once every ZIP has been read.
+  const freqData = new Map(); // expression -> { dictName, rank, display }[]
+  const pitchData = new Map(); // expression -> { reading, position }[]
 
   // Seed core interjections and fallbacks
   const CORE_FALLBACKS = {
@@ -123,7 +275,7 @@ async function buildCache() {
       }
 
       const termFiles = Object.keys(contents.files).filter((name) =>
-        /term_bank_\d+\.json$/i.test(name) || /term_meta_bank_\d+\.json$/i.test(name)
+        /term_bank_\d+\.json$/i.test(name)
       );
 
       for (const tf of termFiles) {
@@ -151,6 +303,7 @@ async function buildCache() {
               const defTags = typeof entry[2] === "string" ? [entry[2]] : [];
               const termTags = typeof entry[7] === "string" ? [entry[7]] : [];
               const allTags = Array.from(new Set([...defTags, ...termTags].filter(Boolean)));
+              const { example, forms } = extractExtras(rawMeanings);
 
               const termObj = {
                 dictName: dictTitle,
@@ -160,11 +313,53 @@ async function buildCache() {
                 tags: allTags,
                 score: rawScore,
               };
+              if (example) termObj.example = example;
+              if (forms.length > 0) termObj.forms = forms;
 
               const existing = termMap.get(expression) || [];
               existing.push(termObj);
               termMap.set(expression, existing);
             }
+          }
+        }
+      }
+
+      // term_meta_bank entries are shaped [expression, mode, data] (length 3) - a completely
+      // different layout from term_bank, so they need their own pass rather than falling through
+      // the term_bank loop above (where they'd fail the length>=6 check and be silently dropped).
+      const termMetaFiles = Object.keys(contents.files).filter((name) =>
+        /term_meta_bank_\d+\.json$/i.test(name)
+      );
+
+      for (const tmf of termMetaFiles) {
+        const fileObj = contents.file(tmf);
+        if (!fileObj) continue;
+        const text = await fileObj.async("string");
+        const entries = JSON.parse(text);
+
+        for (const entry of entries) {
+          if (!Array.isArray(entry) || entry.length < 3) continue;
+          const expression = String(entry[0] || "");
+          const mode = entry[1];
+          const data = entry[2];
+          if (!expression || !data || typeof data !== "object") continue;
+
+          if (mode === "freq") {
+            const rank = typeof data.value === "number" ? data.value : (typeof data === "number" ? data : undefined);
+            if (typeof rank !== "number") continue;
+            const display = typeof data.displayValue === "string" ? data.displayValue : String(rank);
+            const list = freqData.get(expression) || [];
+            list.push({ dictName: dictTitle, rank, display });
+            freqData.set(expression, list);
+          } else if (mode === "pitch" && Array.isArray(data.pitches)) {
+            const pitchReading = String(data.reading || expression);
+            const list = pitchData.get(expression) || [];
+            for (const p of data.pitches) {
+              if (typeof p.position === "number") {
+                list.push({ reading: pitchReading, position: p.position });
+              }
+            }
+            pitchData.set(expression, list);
           }
         }
       }
@@ -241,6 +436,42 @@ async function buildCache() {
       }
     } catch (err) {
       console.warn(`⚠️ Error indexing ${filename}:`, err);
+    }
+  }
+
+  // Merge frequency/pitch data onto matching terms now that every dictionary has been read (a
+  // term's freq/pitch entry can come from a different ZIP than the term itself, e.g. JPDB ranks
+  // JIDict/Jitendex headwords). Pitch is matched by reading too since a kanji expression can have
+  // multiple readings with different pitch accents.
+  //
+  // Also backfills example sentences across dictionaries for the same expression: only
+  // dictionaries with Yomitan-style structured-content (Jitendex) produce an `example` via
+  // extractExtras, so a plain-glossary dictionary's entry (JIDict, 三省堂, ...) for a word that
+  // *does* have an example elsewhere in the index would otherwise show no example at all, even
+  // though one is sitting right there for the same expression. Mirrors what Jitendex itself
+  // already does internally - its own alternate-reading entries for a word share one example
+  // rather than each needing a reading-specific one - so this isn't inventing new behavior.
+  let termsWithExtras = 0;
+  let backfilledExamples = 0;
+  for (const terms of termMap.values()) {
+    const sharedExample = terms.find((t) => t.example)?.example;
+    for (const term of terms) {
+      const freqList = freqData.get(term.expression);
+      if (freqList && freqList.length > 0) {
+        term.frequency = freqList;
+      }
+      const pitchList = pitchData.get(term.expression);
+      if (pitchList) {
+        const match = pitchList.find((p) => p.reading === term.reading) || pitchList[0];
+        if (match) term.pitchPosition = match.position;
+      }
+      if (!term.example && sharedExample) {
+        term.example = sharedExample;
+        backfilledExamples++;
+      }
+      if (term.frequency || term.pitchPosition !== undefined || term.example || term.forms) {
+        termsWithExtras++;
+      }
     }
   }
 
@@ -394,7 +625,7 @@ async function buildCache() {
   }
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-  console.log(`✨ Dictionary indexing complete in ${duration}s! Total Terms: ${termMap.size}, Total Kanji: ${kanjiMap.size}`);
+  console.log(`✨ Dictionary indexing complete in ${duration}s! Total Terms: ${termMap.size}, Total Kanji: ${kanjiMap.size}, Terms with frequency/pitch/example/forms: ${termsWithExtras}`);
 }
 
 buildCache().catch(console.error);
