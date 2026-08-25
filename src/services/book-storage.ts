@@ -1,6 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { BookMeta, Chapter, ReadingProgress, ReaderSettings } from "@/types/book";
-import { DEFAULT_READER_SETTINGS } from "@/types/book";
+import { DEFAULT_READER_SETTINGS, getSystemTheme } from "@/types/book";
 
 interface KotobaDB extends DBSchema {
   books: {
@@ -196,5 +196,10 @@ export async function saveSettings(settings: ReaderSettings): Promise<void> {
 export async function getSettings(): Promise<ReaderSettings> {
   const db = await getDB();
   const settings = await db.get("settings", "reader");
-  return settings ?? DEFAULT_READER_SETTINGS;
+  if (!settings) {
+    return { ...DEFAULT_READER_SETTINGS, theme: getSystemTheme() };
+  }
+  // Merge over defaults rather than returning the saved record as-is, so a settings object saved
+  // before a newer ReaderSettings field existed doesn't leave that field undefined.
+  return { ...DEFAULT_READER_SETTINGS, ...settings };
 }

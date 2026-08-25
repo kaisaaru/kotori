@@ -41,10 +41,15 @@ export interface ReaderSettings {
   dictTrigger?: "hover" | "shift" | "click";
 }
 
+export function getSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined" || !window.matchMedia) return "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   writingMode: "vertical",
   theme: "dark",
-  fontFamily: "'Noto Serif JP', 'Yu Mincho', serif",
+  fontFamily: "'Noto Serif JP', serif",
   fontSize: 18,
   lineHeight: 1.9,
   letterSpacing: 0,

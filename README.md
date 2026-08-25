@@ -6,9 +6,9 @@
 
 **Kotoba Reader AI** (Kotori): An All-in-One, Fast, and Immersive Platform for Reading Japanese Light Novels & Web Novels.
 
-**[🚀 Live Demo: readkotori.vercel.app](https://readkotori.vercel.app)**
+<a href="https://readkotori.vercel.app" target="_blank" rel="noopener noreferrer"><strong>Live Demo: readkotori.vercel.app</strong></a>
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-readkotori.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://readkotori.vercel.app)
+<a href="https://readkotori.vercel.app" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Live_Demo-readkotori.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" /></a>
 [![Next.js](https://img.shields.io/badge/Next.js-16_App_Router-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)

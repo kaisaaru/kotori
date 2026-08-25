@@ -23,12 +23,14 @@ interface ReaderSettingsPanelProps {
   settings: ReaderSettings;
   onSettingsChange: (partial: Partial<ReaderSettings>) => void;
   onClose: () => void;
+  language?: "ID" | "EN";
 }
 
 export default function ReaderSettingsPanel({
   settings,
   onSettingsChange,
   onClose,
+  language = "ID",
 }: ReaderSettingsPanelProps) {
   const [customDicts, setCustomDicts] = useState<CustomDictionaryMeta[]>([]);
   // Read from the shared store rather than polling here: this panel is unmounted whenever the
@@ -115,7 +117,7 @@ export default function ReaderSettingsPanel({
               <Type style={{ width: "16px", height: "16px" }} />
             </span>
             <h2 style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.01em" }}>
-              Display Settings
+              {language === "ID" ? "Pengaturan Tampilan" : "Display Settings"}
             </h2>
           </div>
           <button
@@ -142,7 +144,7 @@ export default function ReaderSettingsPanel({
         {/* Content Body */}
         <div style={{ padding: "24px", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* ===== Theme ===== */}
-          <SettingSection label="Color Theme">
+          <SettingSection label={language === "ID" ? "Tema Warna" : "Color Theme"}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
               {[
                 { key: "light" as const, icon: Sun, label: "Light", previewBg: "#ffffff", previewFg: "#1a1a2e" },
@@ -218,7 +220,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* ===== Writing Mode ===== */}
-          <SettingSection label="Writing Mode (方向)">
+          <SettingSection label={language === "ID" ? "Arah Teks (方向)" : "Writing Mode (方向)"}>
             <div
               style={{
                 display: "grid",
@@ -265,7 +267,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* ===== Font Family ===== */}
-          <SettingSection label="Typography (フォント)">
+          <SettingSection label={language === "ID" ? "Tipografi (フォント)" : "Typography (フォント)"}>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {FONT_FAMILIES.map((font) => {
                 const isActive = settings.fontFamily === font.value;
@@ -312,7 +314,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* ===== Font Size ===== */}
-          <SettingSection label="Font Size">
+          <SettingSection label={language === "ID" ? "Ukuran Font" : "Font Size"}>
             <SliderControl
               value={settings.fontSize}
               min={12}
@@ -326,7 +328,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* ===== Line Height ===== */}
-          <SettingSection label="Line Height">
+          <SettingSection label={language === "ID" ? "Tinggi Baris" : "Line Height"}>
             <SliderControl
               value={settings.lineHeight}
               min={1.2}
@@ -345,7 +347,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* ===== Margin ===== */}
-          <SettingSection label="Page Margin">
+          <SettingSection label={language === "ID" ? "Margin Halaman" : "Page Margin"}>
             <div
               style={{
                 display: "grid",
@@ -386,7 +388,7 @@ export default function ReaderSettingsPanel({
 
           {/* ===== Reader Width (horizontal only) ===== */}
           {settings.writingMode === "horizontal" && (
-            <SettingSection label="Reader Max Width">
+            <SettingSection label={language === "ID" ? "Lebar Maksimum Pembaca" : "Reader Max Width"}>
               <div
                 style={{
                   display: "grid",
@@ -427,7 +429,7 @@ export default function ReaderSettingsPanel({
           )}
 
           {/* TTS Speech Speed Section */}
-          <SettingSection label="Kecepatan Suara TTS / Speech Speed">
+          <SettingSection label={language === "ID" ? "Kecepatan Suara TTS" : "Speech Speed"}>
             <div
               style={{
                 display: "grid",
@@ -474,7 +476,7 @@ export default function ReaderSettingsPanel({
           </SettingSection>
 
           {/* Toggle Dictionary On/Off */}
-          <SettingSection label="Fitur Kamus / Dictionary Popup">
+          <SettingSection label={language === "ID" ? "Fitur Kamus" : "Dictionary Popup"}>
             <div
               style={{
                 display: "flex",
@@ -490,14 +492,14 @@ export default function ReaderSettingsPanel({
             >
               <div>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>
-                  Aktifkan Pop-up Kamus
+                  {language === "ID" ? "Aktifkan Pop-up Kamus" : "Enable Dictionary Pop-up"}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "2px" }}>
                   {dictStatus?.isReady
-                    ? "Tampilkan kamus otomatis saat menyorot kata pada buku"
+                    ? (language === "ID" ? "Tampilkan kamus otomatis saat menyorot kata pada buku" : "Automatically show the dictionary when you highlight a word in the book")
                     : dictStatus?.isBuilding
-                    ? "Kamus sedang disiapkan... (Mohon tunggu)"
-                    : "Kamus bawaan belum aktif"}
+                    ? (language === "ID" ? "Kamus sedang disiapkan... (Mohon tunggu)" : "Dictionary is being prepared... (Please wait)")
+                    : (language === "ID" ? "Kamus bawaan belum aktif" : "Built-in dictionary isn't active yet")}
                 </div>
               </div>
 
@@ -511,10 +513,10 @@ export default function ReaderSettingsPanel({
                 }}
                 title={
                   !dictStatus?.isReady
-                    ? "Kamus bawaan belum aktif"
+                    ? (language === "ID" ? "Kamus bawaan belum aktif" : "Built-in dictionary isn't active yet")
                     : (settings.enableDictionary ?? true)
-                    ? "Matikan Kamus"
-                    : "Hidupkan Kamus"
+                    ? (language === "ID" ? "Matikan Kamus" : "Turn Off Dictionary")
+                    : (language === "ID" ? "Hidupkan Kamus" : "Turn On Dictionary")
                 }
                 style={{
                   width: "48px",
@@ -561,7 +563,7 @@ export default function ReaderSettingsPanel({
                         color: "var(--kb-text-muted)",
                       }}
                     >
-                      Mode Pemicu Kamus (Dictionary Trigger)
+                      {language === "ID" ? "Mode Pemicu Kamus" : "Dictionary Trigger"}
                     </span>
                     </div>
                     <div
@@ -575,9 +577,9 @@ export default function ReaderSettingsPanel({
                       }}
                     >
                     {([
-                      { value: "click" as const, label: "Langsung" },
-                      { value: "hover" as const, label: "Hover Kursor" },
-                      { value: "shift" as const, label: "Tahan Shift" },
+                      { value: "click" as const, label: language === "ID" ? "Langsung" : "Click" },
+                      { value: "hover" as const, label: language === "ID" ? "Hover Kursor" : "Hover" },
+                      { value: "shift" as const, label: language === "ID" ? "Tahan Shift" : "Hold Shift" },
                     ]).map((mode) => {
                       const isActive = settings.dictTrigger === mode.value || (!settings.dictTrigger && mode.value === "click");
                       return (
@@ -610,17 +612,17 @@ export default function ReaderSettingsPanel({
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "8px", lineHeight: 1.4 }}>
                     {settings.dictTrigger === "shift"
-                    ? "Kamus hanya muncul jika Anda menahan tombol Shift sambil mengarahkan kursor ke teks."
+                    ? (language === "ID" ? "Kamus hanya muncul jika Anda menahan tombol Shift sambil mengarahkan kursor ke teks." : "The dictionary only appears while you hold Shift and hover the cursor over text.")
                     : settings.dictTrigger === "hover"
-                    ? "Kamus otomatis muncul begitu kursor diarahkan ke atas kata (mode scan-menerus, tanpa perlu klik)."
-                    : "Klik/ketuk sekali pada kata untuk langsung memunculkan kamus. Klik di area kosong untuk menyembunyikan/menampilkan toolbar."}
+                    ? (language === "ID" ? "Kamus otomatis muncul begitu kursor diarahkan ke atas kata (mode scan-menerus, tanpa perlu klik)." : "The dictionary appears automatically as soon as you hover over a word (continuous scan mode, no click needed).")
+                    : (language === "ID" ? "Klik/ketuk sekali pada kata untuk langsung memunculkan kamus. Klik di area kosong untuk menyembunyikan/menampilkan toolbar." : "Click/tap a word once to bring up the dictionary. Click empty space to show/hide the toolbar.")}
                     </div>
                     </div>
                     )}
                     </SettingSection>
 
                     {/* Yomitan Dictionary Manager Section */}
-          <SettingSection label="Kelola Kamus Kustom / Custom Dictionaries">
+          <SettingSection label={language === "ID" ? "Kelola Kamus Kustom" : "Custom Dictionaries"}>
             <div
               style={{
                 borderRadius: "14px",
@@ -633,7 +635,9 @@ export default function ReaderSettingsPanel({
               }}
             >
               <div style={{ fontSize: "12px", color: "var(--kb-text-secondary)", lineHeight: 1.5 }}>
-                Impor & Kelola file <b>.zip</b> kamus Yomitan kustom Anda (JIDict, Jitendex, Sanseido, dll.).
+                {language === "ID"
+                  ? <>Impor & Kelola file <b>.zip</b> kamus Yomitan kustom Anda (JIDict, Jitendex, Sanseido, dll.).</>
+                  : <>Import & manage your custom Yomitan <b>.zip</b> dictionaries (JIDict, Jitendex, Sanseido, etc.).</>}
               </div>
 
               {/* Server Dictionary Status Badge */}
@@ -660,15 +664,15 @@ export default function ReaderSettingsPanel({
                   />
                   <span style={{ fontSize: "12px", fontWeight: 700, color: dictStatus?.isReady ? "#22c55e" : "#eab308" }}>
                     {dictStatus?.isReady
-                      ? "Kamus Bawaan Aktif & Siap"
+                      ? (language === "ID" ? "Kamus Bawaan Aktif & Siap" : "Built-in Dictionary Active & Ready")
                       : dictStatus?.isBuilding
-                      ? "Sedang Membaca & Mengindeks Kamus..."
-                      : "Memeriksa Status Kamus..."}
+                      ? (language === "ID" ? "Sedang Membaca & Mengindeks Kamus..." : "Reading & Indexing Dictionary...")
+                      : (language === "ID" ? "Memeriksa Status Kamus..." : "Checking Dictionary Status...")}
                   </span>
                 </div>
                 {dictStatus?.totalTerms ? (
                   <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
-                    {dictStatus.totalTerms.toLocaleString()} Entri
+                    {dictStatus.totalTerms.toLocaleString()} {language === "ID" ? "Entri" : "Entries"}
                   </span>
                 ) : null}
               </div>
@@ -692,7 +696,7 @@ export default function ReaderSettingsPanel({
                   transition: "all 0.2s ease",
                 }}
               >
-                + Tambah Kamus ZIP Baru
+                {language === "ID" ? "+ Tambah Kamus ZIP Baru" : "+ Add New ZIP Dictionary"}
                 <input
                   type="file"
                   accept=".zip"
@@ -704,7 +708,7 @@ export default function ReaderSettingsPanel({
                         await dictionaryService.loadZipDictionary(file, file.name);
                       }
                       await refreshCustomDicts();
-                      alert("Kamus Yomitan berhasil ditambahkan!");
+                      alert(language === "ID" ? "Kamus Yomitan berhasil ditambahkan!" : "Yomitan dictionary added successfully!");
                     }
                   }}
                   style={{ display: "none" }}
@@ -715,7 +719,7 @@ export default function ReaderSettingsPanel({
               {customDicts.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
                   <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--kb-text-muted)" }}>
-                    Kamus Terinstal ({customDicts.length}):
+                    {language === "ID" ? `Kamus Terinstal (${customDicts.length}):` : `Installed Dictionaries (${customDicts.length}):`}
                   </div>
                   {customDicts.map((dict) => (
                     <div
@@ -740,7 +744,7 @@ export default function ReaderSettingsPanel({
                       </div>
                       <button
                         onClick={() => handleDeleteDict(dict.name)}
-                        title="Hapus Kamus Ini"
+                        title={language === "ID" ? "Hapus Kamus Ini" : "Delete This Dictionary"}
                         style={{
                           width: "28px",
                           height: "28px",

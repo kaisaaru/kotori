@@ -39,6 +39,7 @@ import {
 } from "@/services/book-storage";
 import { formatFileSize, truncate } from "@/lib/utils";
 import type { BookMeta, ReadingProgress, Chapter } from "@/types/book";
+import { getSystemTheme } from "@/types/book";
 import { Footer } from "@/components/Footer";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 
@@ -171,58 +172,6 @@ const TRANSLATIONS = {
     communityTitle: "Support Kotori",
     communityDesc: "Have a feature idea, found a bug, or just want to say hi? Feel free to drop a message.",
   },
-  JP: {
-    subtitle: "日本語小説リーダー",
-    searchPlaceholder: "本や著者名を検索...",
-    addBook: "本を追加",
-    dragDropText: "ここにEPUBファイルをドラッグ＆ドロップ",
-    browseFiles: "またはファイルを選択",
-    libraryTitle: "ライブラリ",
-    noBooksYet: "本がありません",
-    noBooksDesc: "EPUBファイルをアップロードして読書を開始しましょう。",
-    noBooksHintEmpty: "EPUB小説ファイルをお探しですか？ 以下のサイトで検索・ダウンロードできます： ",
-    noBooksHintList: "他のEPUBを探す： ",
-    readNow: "読む",
-    continueReading: "続きを読む",
-    deleteConfirmTitle: "小説を削除",
-    deleteConfirmDesc: "この小説を削除してもよろしいですか？",
-    deleteConfirmDescWithTitle: (title: string) => `小説「${title}」をライブラリから削除してもよろしいですか？保存された読書の進捗も削除されます。`,
-    cancel: "キャンセル",
-    delete: "削除",
-    noMatchTitle: "一致する小説が見つかりません",
-    noMatchDesc: (query: string) => `"${query}" に一致する本がありません。別のキーワードで検索してください。`,
-    languageLabel: "言語 / Language",
-    themeLabel: "テーマモード / Theme",
-    themeLight: "ライトモード",
-    themeDark: "ダークモード",
-    readNovel: "小説を読む",
-    unknownAuthor: "作者不明",
-    unread: "未読",
-    readProgress: (percent: number) => `${percent}% 既読`,
-    chaptersCount: (count: number) => `${count} 章`,
-    bookExists: (title: string) => `小説「${title}」は既にライブラリに存在します。`,
-    bookAdded: (title: string) => `小説「${title}」が追加されました！`,
-    uploadReading: (filename: string) => `「${filename}」を読み込んでいます...`,
-    uploadSaving: (title: string) => `「${title}」をライブラリに保存しています...`,
-    resetProgress: "読書進捗をリセット",
-    progressReset: (title: string) => `「${title}」の読書進捗がリセットされました。`,
-    resetConfirmTitle: "読書進捗のリセット",
-    resetConfirmDesc: (title: string) => `小説「${title}」の読書進捗をリセットしてもよろしいですか？すべての進捗が最初からやり直しになります。`,
-    bookDeleted: (title: string) => `小説「${title}」が削除されました。`,
-    feedbackBtn: "ご意見・ご要望",
-    feedbackTitle: "Kotori へのご意見・ご要望",
-    feedbackDesc: "Kotori は日本語の読書や学習を快適にするために作られました。機能追加のアイデア、バグ報告、開発者への応援メッセージなどをお寄せください！",
-    catBug: "バグ・不具合報告",
-    catIdea: "新機能のアイデア",
-    catLove: "応援・その他",
-    msgPlaceholder: "ご意見、ご要望、または見つけたバグの詳細をここに入力してください...",
-    contactPlaceholder: "任意：返信希望の場合は IG/TikTok またはメールアドレス",
-    sendBtn: "送信する",
-    sendingBtn: "送信中...",
-    feedbackSuccess: "ありがとうございます！ご意見・ご要望は開発者に送信されました。",
-    communityTitle: "Kotori をサポート",
-    communityDesc: "新機能のアイデア、バグの発見、または単に挨拶したいだけでも大歓迎です。お気軽にメッセージをお送りください。",
-  },
 };
 
 /* ===== Helper to Parse Series and Volume from Title ===== */
@@ -283,7 +232,7 @@ export default function HomePage() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [language, setLanguage] = useState<"ID" | "EN" | "JP">("ID");
+  const [language, setLanguage] = useState<"ID" | "EN">("EN");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"shelf" | "grid">("shelf");
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -380,18 +329,23 @@ export default function HomePage() {
   useEffect(() => {
     loadBooks();
     const savedTheme = localStorage.getItem("kotoba-theme") as "light" | "dark" | null;
-    const t = savedTheme || "dark";
+    const t = savedTheme || getSystemTheme();
     setTheme(t as "light" | "dark");
     document.documentElement.setAttribute("data-theme", t);
 
-    const savedLang = localStorage.getItem("kotoba-language") as "ID" | "EN" | "JP" | null;
-    if (savedLang) setLanguage(savedLang);
+    const savedLang = localStorage.getItem("kotoba-language") as "ID" | "EN" | null;
+    if (savedLang === "ID" || savedLang === "EN") {
+      setLanguage(savedLang);
+    } else {
+      const browserLang = navigator.language || navigator.languages?.[0] || "";
+      setLanguage(browserLang.toLowerCase().startsWith("id") ? "ID" : "EN");
+    }
 
     const savedViewMode = localStorage.getItem("kotoba-view-mode") as "shelf" | "grid" | null;
     if (savedViewMode) setViewMode(savedViewMode);
   }, []);
 
-  const handleLanguageChange = (lang: "ID" | "EN" | "JP") => {
+  const handleLanguageChange = (lang: "ID" | "EN") => {
     setLanguage(lang);
     localStorage.setItem("kotoba-language", lang);
   };
@@ -797,7 +751,7 @@ export default function HomePage() {
               opacity: 0,
             }}
           >
-            {language === "ID" ? "Memuat..." : language === "JP" ? "読み込んでいます..." : "Loading..."}
+            {language === "ID" ? "Memuat..." : "Loading..."}
           </div>
         </div>
       )}
@@ -960,7 +914,7 @@ export default function HomePage() {
               <span>{t.feedbackBtn}</span>
             </button>
 
-            {/* Language Switcher (ID / EN / JP) */}
+            {/* Language Switcher (ID / EN) */}
             <div
               className="kb-lang-switcher"
               style={{
@@ -973,7 +927,7 @@ export default function HomePage() {
                 gap: "2px",
               }}
             >
-              {(["ID", "EN", "JP"] as const).map((lang) => {
+              {(["ID", "EN"] as const).map((lang) => {
                 const isActive = language === lang;
                 return (
                   <button
@@ -1044,7 +998,7 @@ export default function HomePage() {
                 flexShrink: 0,
                 transition: "all 0.2s ease",
               }}
-              title={viewMode === "shelf" ? (language === "ID" ? "Ganti ke tampilan grid" : language === "JP" ? "グリッド表示へ" : "Switch to grid view") : (language === "ID" ? "Ganti ke tampilan rak" : language === "JP" ? "本棚表示へ" : "Switch to bookshelf view")}
+              title={viewMode === "shelf" ? (language === "ID" ? "Ganti ke tampilan grid" : "Switch to grid view") : (language === "ID" ? "Ganti ke tampilan rak" : "Switch to bookshelf view")}
             >
               {viewMode === "shelf" ? (
                 <LayoutGrid style={{ width: "18px", height: "18px" }} />
@@ -1220,7 +1174,7 @@ export default function HomePage() {
                     gap: "4px",
                   }}
                 >
-                  {(["ID", "EN", "JP"] as const).map((lang) => {
+                  {(["ID", "EN"] as const).map((lang) => {
                     const isActive = language === lang;
                     return (
                       <button
@@ -1282,7 +1236,7 @@ export default function HomePage() {
               {/* Tampilan Section */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <label style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--kb-text-secondary)", textTransform: "uppercase" }}>
-                  {language === "ID" ? "Tampilan Perpustakaan" : language === "JP" ? "表示モード" : "Library View"}
+                  {language === "ID" ? "Tampilan Perpustakaan" : "Library View"}
                 </label>
                 <button
                   onClick={() => {
@@ -1306,12 +1260,12 @@ export default function HomePage() {
                     {viewMode === "shelf" ? (
                       <>
                         <LayoutGrid style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
-                        <span>{language === "ID" ? "Ganti ke Grid" : language === "JP" ? "グリッド表示へ" : "Switch to Grid"}</span>
+                        <span>{language === "ID" ? "Ganti ke Grid" : "Switch to Grid"}</span>
                       </>
                     ) : (
                       <>
                         <Library style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
-                        <span>{language === "ID" ? "Ganti ke Rak Buku" : language === "JP" ? "本棚表示へ" : "Switch to Bookshelf"}</span>
+                        <span>{language === "ID" ? "Ganti ke Rak Buku" : "Switch to Bookshelf"}</span>
                       </>
                     )}
                   </div>
@@ -1591,10 +1545,10 @@ export default function HomePage() {
             >
               <div>
                 <h2 style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.01em" }}>
-                  {searchQuery ? (language === "ID" ? "Hasil Pencarian" : language === "JP" ? "検索結果" : "Search Results") : t.libraryTitle}
+                  {searchQuery ? (language === "ID" ? "Hasil Pencarian" : "Search Results") : t.libraryTitle}
                 </h2>
                 <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "2px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "5px" }}>
-                  <span>{filteredBooks.length} {language === "ID" ? "novel tersedia" : language === "JP" ? "冊の小説" : filteredBooks.length === 1 ? "novel available" : "novels available"}</span>
+                  <span>{filteredBooks.length} {language === "ID" ? "novel tersedia" : filteredBooks.length === 1 ? "novel available" : "novels available"}</span>
                   <span style={{ margin: "0 4px", opacity: 0.4 }}>•</span>
                   <Sparkles style={{ width: "13px", height: "13px", color: "var(--kb-primary)", display: "inline-block" }} />
                   <span style={{ color: "var(--kb-text-secondary)", fontWeight: 400 }}>{t.noBooksHintList}</span>
@@ -1628,7 +1582,7 @@ export default function HomePage() {
                         {shelf.seriesName}
                       </h3>
                       <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
-                        {shelf.books.length} {language === "ID" ? "Volume" : language === "JP" ? "巻" : "Volumes"}
+                        {shelf.books.length} {language === "ID" ? "Volume" : "Volumes"}
                       </span>
                     </div>
                     
@@ -2216,7 +2170,7 @@ export default function HomePage() {
                     cursor: "pointer",
                   }}
                 >
-                  {language === "ID" ? "Reset" : language === "JP" ? "リセット" : "Reset"}
+                  Reset
                 </button>
               </div>
             </div>
@@ -2237,7 +2191,7 @@ export default function HomePage() {
 
         const hasProgress = progressPercent > 0;
         const lastReadChapter = progress
-          ? `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${progress.chapterIndex + 1}`
+          ? `${language === "ID" ? "Bab" : "Chapter"} ${progress.chapterIndex + 1}`
           : null;
 
         const numFlips = progress ? Math.min(progress.chapterIndex, 10) : 0;
@@ -2271,14 +2225,14 @@ export default function HomePage() {
         const getChapterMeta = (ch: Chapter | undefined, indexFallback: number) => {
           if (!ch) {
             return {
-              title: `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${indexFallback + 1}${language === "JP" ? "章" : ""}`,
+              title: `${language === "ID" ? "Bab" : "Chapter"} ${indexFallback + 1}`,
               heading: null as string | null,
               image: null as string | null,
               excerpt: null as string | null,
             };
           }
 
-          const defaultTitle = `${language === "ID" ? "Bab" : language === "JP" ? "第" : "Chapter"} ${(ch.index ?? indexFallback) + 1}${language === "JP" ? "章" : ""}`;
+          const defaultTitle = `${language === "ID" ? "Bab" : "Chapter"} ${(ch.index ?? indexFallback) + 1}`;
           
           let title = ch.title && !/^Chapter \d+$/i.test(ch.title) && !/^Bab \d+$/i.test(ch.title)
             ? ch.title.trim()
@@ -2409,7 +2363,7 @@ export default function HomePage() {
                           {chapterTitle}
                         </p>
                         <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", backgroundColor: "rgba(99,102,241,0.12)", color: "var(--kb-primary)", flexShrink: 0 }}>
-                          {hasProgress ? `${progressPercent}%` : (language === "ID" ? "Baru" : language === "JP" ? "未読" : "New")}
+                          {hasProgress ? `${progressPercent}%` : (language === "ID" ? "Baru" : "New")}
                         </span>
                       </div>
 
@@ -2493,7 +2447,7 @@ export default function HomePage() {
                   onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
                   onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}
                 >
-                  <span>{hasProgress ? (language === "ID" ? "Lanjutkan Membaca" : language === "JP" ? "読書を続ける" : "Continue Reading") : (language === "ID" ? "Mulai Membaca" : language === "JP" ? "読書を開始" : "Start Reading")}</span>
+                  <span>{hasProgress ? (language === "ID" ? "Lanjutkan Membaca" : "Continue Reading") : (language === "ID" ? "Mulai Membaca" : "Start Reading")}</span>
                 </button>
               </div>
 
