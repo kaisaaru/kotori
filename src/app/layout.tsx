@@ -57,6 +57,9 @@ const softwareAppJsonLd = {
 };
 
 import { DictionaryPrewarmer } from "@/components/DictionaryPrewarmer";
+import { WebMcpTools } from "@/components/WebMcpTools";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export default function RootLayout({
   children,
@@ -85,7 +88,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen antialiased">
         <DictionaryPrewarmer />
+        <WebMcpTools />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
