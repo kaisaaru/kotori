@@ -98,7 +98,7 @@ html {
 }
 
 body {
-  font-family: "Inter", "Noto Sans JP", system-ui, sans-serif;
+  font-family: var(--font-inter), var(--font-noto-sans-jp), system-ui, sans-serif;
   background-color: var(--kb-bg);
   color: var(--kb-text);
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -106,7 +106,7 @@ body {
 
 /* ===== Reader Styles ===== */
 .reader-content {
-  font-family: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho Pro", serif;
+  font-family: var(--font-noto-serif-jp), "Yu Mincho", "Hiragino Mincho Pro", serif;
   line-height: 1.9;
   color: var(--kb-text);
   overflow-wrap: break-word;

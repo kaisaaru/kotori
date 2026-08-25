@@ -49,7 +49,7 @@ export function getSystemTheme(): "light" | "dark" {
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   writingMode: "vertical",
   theme: "dark",
-  fontFamily: "'Noto Serif JP', serif",
+  fontFamily: "var(--font-noto-serif-jp), serif",
   fontSize: 18,
   lineHeight: 1.9,
   letterSpacing: 0,
@@ -61,8 +61,8 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
 };
 
 export const FONT_FAMILIES = [
-  { label: "Noto Serif JP", value: "'Noto Serif JP', serif" },
-  { label: "Noto Sans JP", value: "'Noto Sans JP', sans-serif" },
+  { label: "Noto Serif JP", value: "var(--font-noto-serif-jp), serif" },
+  { label: "Noto Sans JP", value: "var(--font-noto-sans-jp), sans-serif" },
   { label: "Yu Mincho", value: "'Yu Mincho', serif" },
   { label: "Yu Gothic", value: "'Yu Gothic', sans-serif" },
   { label: "Hiragino Mincho", value: "'Hiragino Mincho Pro', serif" },
