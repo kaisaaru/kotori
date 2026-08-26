@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   Send,
   MessageSquare,
+  History,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
@@ -42,6 +43,7 @@ import { formatFileSize, truncate } from "@/lib/utils";
 import type { BookMeta, ReadingProgress, Chapter } from "@/types/book";
 import { getSystemTheme } from "@/types/book";
 import { Footer } from "@/components/Footer";
+import { DictionarySearchFab } from "@/components/DictionarySearchFab";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 
 // Deferred out of the initial bundle - most page loads never open the search modal or upload a
@@ -49,6 +51,10 @@ import { useScrollReveal } from "@/hooks/useScrollReveal";
 // on every visit.
 const DictionarySearchModal = dynamic(
   () => import("@/components/DictionarySearchModal").then((m) => m.DictionarySearchModal),
+  { ssr: false }
+);
+const ChangeLogModal = dynamic(
+  () => import("@/components/ChangeLogModal").then((m) => m.ChangeLogModal),
   { ssr: false }
 );
 
@@ -259,6 +265,7 @@ export default function HomePage() {
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showDictionarySearch, setShowDictionarySearch] = useState(false);
+  const [showChangeLog, setShowChangeLog] = useState(false);
   const [feedbackCategory, setFeedbackCategory] = useState<"idea" | "bug" | "love">("idea");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackContact, setFeedbackContact] = useState("");
@@ -900,9 +907,9 @@ export default function HomePage() {
               flexShrink: 0,
             }}
           >
-            {/* Dictionary Search Button */}
+            {/* Change Log Button */}
             <button
-              onClick={() => setShowDictionarySearch(true)}
+              onClick={() => setShowChangeLog(true)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -919,9 +926,10 @@ export default function HomePage() {
               }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)")}
-              title={language === "ID" ? "Cari Kamus" : "Dictionary Search"}
+              title="Change Log"
+              aria-label="Change Log"
             >
-              <Search style={{ width: "16px", height: "16px" }} />
+              <History style={{ width: "16px", height: "16px" }} />
             </button>
 
             {/* Feedback Button */}
@@ -1200,10 +1208,10 @@ export default function HomePage() {
 
             {/* Menu Sections */}
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              {/* Dictionary Search Action */}
+              {/* Change Log Action */}
               <button
                 onClick={() => {
-                  setShowDictionarySearch(true);
+                  setShowChangeLog(true);
                   closeMobileMenu();
                 }}
                 style={{
@@ -1220,8 +1228,8 @@ export default function HomePage() {
                   cursor: "pointer",
                 }}
               >
-                <Search style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
-                <span>{language === "ID" ? "Cari Kamus" : "Dictionary Search"}</span>
+                <History style={{ width: "18px", height: "18px", color: "var(--kb-primary)" }} />
+                <span>Change Log</span>
               </button>
 
               {/* Bahasa Section */}
@@ -2099,10 +2107,25 @@ export default function HomePage() {
                   </div>
                 </div>
 
+              {/* Floating Dictionary Search Button - bottom-right, always reachable regardless of
+                  scroll position, replacing the old toolbar/mobile-menu entry points. */}
+              <DictionarySearchFab
+                onClick={() => setShowDictionarySearch(true)}
+                language={language}
+                bottom="24px"
+              />
+
               {/* Dictionary Search Modal */}
               <DictionarySearchModal
                 isOpen={showDictionarySearch}
                 onClose={() => setShowDictionarySearch(false)}
+                language={language}
+              />
+
+              {/* Change Log Modal */}
+              <ChangeLogModal
+                isOpen={showChangeLog}
+                onClose={() => setShowChangeLog(false)}
                 language={language}
               />
 
