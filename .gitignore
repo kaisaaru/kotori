@@ -3,6 +3,7 @@ node_modules/
 out/
 .vercel/
 *.tsbuildinfo
+.env
 .env*.local
 reference/kotoba-rumus/*素材*.zip
 dict-cache-v1.json
