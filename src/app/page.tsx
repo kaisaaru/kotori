@@ -743,7 +743,8 @@ export default function HomePage() {
               alt="Loading"
               width={60}
               height={60}
-              priority
+              preload
+              fetchPriority="high"
               style={{
                 objectFit: "contain",
                 animation: "pulse 2s ease-in-out infinite",
@@ -838,7 +839,8 @@ export default function HomePage() {
               alt="Kotori"
               width={36}
               height={36}
-              priority
+              preload
+              fetchPriority="high"
               style={{
                 objectFit: "contain",
                 flexShrink: 0,
