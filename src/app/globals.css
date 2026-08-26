@@ -893,3 +893,68 @@ body {
   }
 }
 
+/* ===== Floating Dictionary Search Button ===== */
+/* Expands from a circle into a pill on hover, revealing its label. Width (not "auto") is what's
+   transitionable, so it targets a fixed px value - sized per-language (.kb-dict-fab-id/-en) since
+   "Cari Kamus" and "Search" are different enough lengths that one shared width left "Search"
+   looking loose with excess empty space. */
+.kb-dict-fab {
+  position: fixed;
+  right: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  width: 56px;
+  padding: 0 20px 0 0;
+  border-radius: 28px;
+  border: none;
+  background-color: var(--kb-primary);
+  color: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+}
+
+.kb-dict-fab:hover {
+  background-color: var(--kb-primary-hover);
+}
+
+.kb-dict-fab-id:hover {
+  width: 168px;
+}
+
+.kb-dict-fab-en:hover {
+  width: 132px;
+}
+
+.kb-dict-fab-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-left: 16px;
+}
+
+.kb-dict-fab-label {
+  opacity: 0;
+  margin-left: 0;
+  font-size: 14px;
+  font-weight: 700;
+  transition: opacity 0.2s ease, margin-left 0.2s ease;
+}
+
+.kb-dict-fab:hover .kb-dict-fab-label {
+  opacity: 1;
+  margin-left: 10px;
+  transition-delay: 0.15s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-dict-fab,
+  .kb-dict-fab-label {
+    transition: none !important;
+  }
+}
+

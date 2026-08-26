@@ -13,9 +13,9 @@ import {
   X,
   Bookmark,
   BookmarkCheck,
-  Search,
 } from "lucide-react";
 import { DictionarySearchModal } from "@/components/DictionarySearchModal";
+import { DictionarySearchFab } from "@/components/DictionarySearchFab";
 import { useReaderStore } from "@/stores/reader-store";
 import { useDictionaryStore } from "@/stores/dictionary-store";
 import {
@@ -1387,28 +1387,6 @@ export default function ReaderPage() {
           >
             <ArrowLeft style={{ width: "16px", height: "16px" }} />
           </button>
-          <button
-            onClick={() => setShowDictionarySearch(true)}
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "var(--kb-bg-secondary)",
-              border: "1px solid var(--kb-border)",
-              color: "var(--kb-text)",
-              cursor: "pointer",
-              flexShrink: 0,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-surface-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)")}
-            title={language === "ID" ? "Cari Kamus" : "Dictionary Search"}
-          >
-            <Search style={{ width: "16px", height: "16px" }} />
-          </button>
           <p
             className="kb-reader-book-title"
             style={{
@@ -1902,6 +1880,16 @@ export default function ReaderPage() {
         </div>,
         document.body
       )}
+
+      {/* ===== Floating Dictionary Search Button ===== */}
+      {/* Fixed bottom-right, positioned above the 56px bottom toolbar so it never overlaps it, and
+          stays visible regardless of showToolbar (unlike the toolbar's own search entry it replaces)
+          so the dictionary is always one tap away while reading. */}
+      <DictionarySearchFab
+        onClick={() => setShowDictionarySearch(true)}
+        language={language}
+        bottom="76px"
+      />
 
       {/* ===== Book-wide Reading Progress Badge (ttu-reader style, always visible regardless of toolbar) ===== */}
       {totalBookChars > 0 && (
