@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
@@ -219,15 +219,23 @@ const CACHE_FILES = [
   path.join(process.cwd(), ".next", "dict-cache-v1.json"),
 ];
 
-async function buildServerIndexInBackground() {
+// Fires off the (potentially multi-second, 292MB-cache-parsing) index build via after() so it
+// never blocks the response that triggered it - an unawaited call alone does NOT achieve this,
+// since JS runs an async function synchronously up to its first `await`, and the disk-cache-load
+// branch below has no `await` until the file read, so calling it bare would still block the event
+// loop (and therefore this very request's own response) for the full parse+index duration.
+function buildServerIndexInBackground() {
   if (isIndexReady || isIndexBuilding) return;
   isIndexBuilding = true;
+  after(doBuildServerIndex);
+}
 
+async function doBuildServerIndex() {
   // Try loading pre-built disk cache (< 10ms instant load on refresh)
   try {
     for (const cacheFile of CACHE_FILES) {
       if (fs.existsSync(cacheFile)) {
-        const cachedData = JSON.parse(fs.readFileSync(cacheFile, "utf-8"));
+        const cachedData = JSON.parse(await fs.promises.readFile(cacheFile, "utf-8"));
         if (cachedData.terms && cachedData.terms.length > 0) {
           for (const [k, v] of cachedData.terms) {
             termMap.set(k, v);
