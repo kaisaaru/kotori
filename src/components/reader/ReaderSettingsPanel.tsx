@@ -24,6 +24,7 @@ interface ReaderSettingsPanelProps {
   onSettingsChange: (partial: Partial<ReaderSettings>) => void;
   onClose: () => void;
   language?: "ID" | "EN";
+  isJapaneseBook?: boolean;
 }
 
 export default function ReaderSettingsPanel({
@@ -31,6 +32,7 @@ export default function ReaderSettingsPanel({
   onSettingsChange,
   onClose,
   language = "ID",
+  isJapaneseBook = true,
 }: ReaderSettingsPanelProps) {
   const [customDicts, setCustomDicts] = useState<CustomDictionaryMeta[]>([]);
   // Read from the shared store rather than polling here: this panel is unmounted whenever the
@@ -491,7 +493,7 @@ export default function ReaderSettingsPanel({
                 borderRadius: "14px",
                 backgroundColor: "var(--kb-bg-secondary)",
                 border: "1px solid var(--kb-border-subtle)",
-                opacity: dictStatus?.isReady ? 1 : 0.65,
+                opacity: !isJapaneseBook ? 0.6 : dictStatus?.isReady ? 1 : 0.65,
                 transition: "all 0.2s ease",
               }}
             >
@@ -500,7 +502,11 @@ export default function ReaderSettingsPanel({
                   {language === "ID" ? "Aktifkan Pop-up Kamus" : "Enable Dictionary Pop-up"}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "2px" }}>
-                  {dictStatus?.isReady
+                  {!isJapaneseBook
+                    ? (language === "ID"
+                      ? "Kamus dinonaktifkan (Bukan novel Jepang)"
+                      : "Dictionary disabled (Not a Japanese novel)")
+                    : dictStatus?.isReady
                     ? (language === "ID" ? "Tampilkan kamus otomatis saat menyorot kata pada buku" : "Automatically show the dictionary when you highlight a word in the book")
                     : dictStatus?.isBuilding
                     ? (language === "ID" ? "Kamus sedang disiapkan... (Mohon tunggu)" : "Dictionary is being prepared... (Please wait)")
@@ -510,14 +516,16 @@ export default function ReaderSettingsPanel({
 
               {/* Toggle Switch Button */}
               <button
-                disabled={!dictStatus?.isReady}
+                disabled={!isJapaneseBook || !dictStatus?.isReady}
                 onClick={() => {
-                  if (dictStatus?.isReady) {
+                  if (isJapaneseBook && dictStatus?.isReady) {
                     onSettingsChange({ enableDictionary: !(settings.enableDictionary ?? true) });
                   }
                 }}
                 title={
-                  !dictStatus?.isReady
+                  !isJapaneseBook
+                    ? (language === "ID" ? "Kamus hanya berfungsi untuk novel Jepang" : "Dictionary is only available for Japanese novels")
+                    : !dictStatus?.isReady
                     ? (language === "ID" ? "Kamus bawaan belum aktif" : "Built-in dictionary isn't active yet")
                     : (settings.enableDictionary ?? true)
                     ? (language === "ID" ? "Matikan Kamus" : "Turn Off Dictionary")
@@ -528,15 +536,15 @@ export default function ReaderSettingsPanel({
                   height: "26px",
                   borderRadius: "13px",
                   backgroundColor:
-                    dictStatus?.isReady && (settings.enableDictionary ?? true)
+                    isJapaneseBook && dictStatus?.isReady && (settings.enableDictionary ?? true)
                       ? "var(--kb-primary)"
                       : "var(--kb-border)",
                   position: "relative",
-                  cursor: dictStatus?.isReady ? "pointer" : "not-allowed",
+                  cursor: isJapaneseBook && dictStatus?.isReady ? "pointer" : "not-allowed",
                   border: "none",
                   transition: "all 0.2s ease",
                   flexShrink: 0,
-                  opacity: dictStatus?.isReady ? 1 : 0.5,
+                  opacity: isJapaneseBook && dictStatus?.isReady ? 1 : 0.45,
                 }}
               >
                 <div
@@ -547,16 +555,16 @@ export default function ReaderSettingsPanel({
                     backgroundColor: "#ffffff",
                     position: "absolute",
                     top: "3px",
-                    left: dictStatus?.isReady && (settings.enableDictionary ?? true) ? "25px" : "3px",
+                    left: isJapaneseBook && dictStatus?.isReady && (settings.enableDictionary ?? true) ? "25px" : "3px",
                     transition: "left 0.2s ease",
                     boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                    }}
-                    />
-                    </button>
-                    </div>
+                  }}
+                />
+              </button>
+            </div>
 
-                    {/* Dictionary Trigger Mode */}
-                    {(settings.enableDictionary ?? true) && dictStatus?.isReady && (
+            {/* Dictionary Trigger Mode */}
+            {isJapaneseBook && (settings.enableDictionary ?? true) && dictStatus?.isReady && (
                     <div className="kb-settings-group" style={{ marginTop: "16px" }}>
                     <div className="kb-settings-label" style={{ marginBottom: "10px" }}>
                     <span
