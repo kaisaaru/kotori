@@ -11,6 +11,26 @@ export interface ChangelogEntry {
 // CURRENT_VERSION below always follows automatically.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.4.0",
+    date: "2026-09-07",
+    changes: {
+      id: [
+        "- Perbaikan gestur layar sentuh mobile: menggulir (scroll) halaman kini mulus tanpa sengaja memicu terbukanya kamus.",
+        "- Tombol pintas di topbar reader untuk mengaktifkan atau menonaktifkan kamus bawaan dalam 1 klik (cocok bagi pengguna ekstensi Yomitan sendiri).",
+        "- Deteksi otomatis ekstensi browser Yomitan dengan prompt konfirmasi untuk mencegah bentrok dua popup kamus.",
+        "- Perbaikan posisi popup kamus: selalu berada 100% di dalam layar dan secara cerdas memilih posisi terbaik saat kata terpotong antar-kolom/baris.",
+        "- Judul tab browser kini dinamis menampilkan judul buku yang sedang dibaca (misal: 'Baca [Judul Buku] | Kotori').",
+      ],
+      en: [
+        "- Mobile touch gesture fix: scrolling through pages is now smooth without accidentally triggering dictionary popups.",
+        "- Quick toggle button in reader topbar to enable or disable the built-in dictionary in 1 click (ideal for external Yomitan extension users).",
+        "- Automatic Yomitan browser extension detection with confirmation prompt to prevent double popup conflicts.",
+        "- Fixed dictionary popup positioning: always 100% visible on-screen and smartly docks to the best anchor when words wrap across columns or lines.",
+        "- Dynamic browser tab title now displays the book currently being read (e.g. 'Read [Book Title] | Kotori').",
+      ],
+    },
+  },
+  {
     version: "0.3.0",
     date: "2026-08-26",
     changes: {

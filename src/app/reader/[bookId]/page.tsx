@@ -13,6 +13,7 @@ import {
   X,
   Bookmark,
   BookmarkCheck,
+  Sparkles,
 } from "lucide-react";
 import { DictionarySearchModal } from "@/components/DictionarySearchModal";
 import { DictionarySearchFab } from "@/components/DictionarySearchFab";
@@ -280,7 +281,9 @@ export default function ReaderPage() {
   const lastDictLookupAtRef = useRef(0);
   const isPointerDownRef = useRef(false);
   const isDraggingRef = useRef(false); // true only once actual movement happens while pointer is down (real drag, not a static tap)
-  const isTouchGestureRef = useRef(false); // distinguishes touch (handled by the tap-scanner) from mouse (handled by click-mode lookup)
+  const isTouchGestureRef = useRef(false); // distinguishes touch from mouse
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isTouchScrollRef = useRef(false); // true when touch gesture moved enough to be a scroll/swipe rather than a tap
   // Precise reading-position restore (set from saved progress before chapter mounts, consumed once)
   const pendingScrollRestoreRef = useRef<number | null>(null);
   const [chapterScrollRatio, setChapterScrollRatio] = useState(0);
@@ -407,10 +410,10 @@ export default function ReaderPage() {
       setBookmarkOverlay((prev) =>
         prev
           ? {
-              ...prev,
-              position: { x: mainRect.left + mainRect.width / 2, y: mainRect.top },
-              rects: rawClientRects,
-            }
+            ...prev,
+            position: { x: mainRect.left + mainRect.width / 2, y: mainRect.top },
+            rects: rawClientRects,
+          }
           : null
       );
     }
@@ -432,9 +435,9 @@ export default function ReaderPage() {
         const box = el.getBoundingClientRect();
         setOverlayClip((prev) =>
           prev.top === box.top &&
-          prev.left === box.left &&
-          prev.width === box.width &&
-          prev.height === box.height
+            prev.left === box.left &&
+            prev.width === box.width &&
+            prev.height === box.height
             ? prev
             : { top: box.top, left: box.left, width: box.width, height: box.height }
         );
@@ -465,12 +468,33 @@ export default function ReaderPage() {
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
       isPointerDownRef.current = true;
       isDraggingRef.current = false;
-      isTouchGestureRef.current = e.type.startsWith("touch");
+      const isTouch = e.type.startsWith("touch");
+      isTouchGestureRef.current = isTouch;
+      if (isTouch) {
+        const t = (e as TouchEvent).touches?.[0];
+        if (t) {
+          touchStartPosRef.current = { x: t.clientX, y: t.clientY };
+        }
+        isTouchScrollRef.current = false;
+      } else {
+        touchStartPosRef.current = null;
+        isTouchScrollRef.current = false;
+      }
     };
 
-    const handlePointerMove = () => {
+    const handlePointerMove = (e: MouseEvent | TouchEvent) => {
       if (isPointerDownRef.current) {
         isDraggingRef.current = true;
+        if (e.type.startsWith("touch") && touchStartPosRef.current) {
+          const t = (e as TouchEvent).touches?.[0];
+          if (t) {
+            const dx = t.clientX - touchStartPosRef.current.x;
+            const dy = t.clientY - touchStartPosRef.current.y;
+            if (Math.hypot(dx, dy) > 8) {
+              isTouchScrollRef.current = true;
+            }
+          }
+        }
       }
     };
 
@@ -620,6 +644,97 @@ export default function ReaderPage() {
     };
   }, [settings.enableDictionary, book, currentChapterIndex]);
 
+  // Yomitan / Yomichan extension auto-detection
+  const [showYomitanBanner, setShowYomitanBanner] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isLoaded) return;
+    if (settings.enableDictionary === false) return; // user already disabled dictionary
+    if (sessionStorage.getItem("kotori_yomitan_prompt_dismissed") === "true") return;
+
+    const checkYomitan = (): boolean => {
+      const selectors = [
+        'iframe[name*="yomitan"]',
+        'iframe[name*="yomichan"]',
+        'iframe[src*="yomitan"]',
+        'iframe[src*="yomichan"]',
+        'iframe[src*="popup.html"]',
+        'iframe[src*="-extension://"]',
+        'iframe.yomitan-popup-frame',
+        '.yomitan-popup',
+        '.yomichan-popup',
+        '#yomitan-popup',
+        '#yomichan-popup',
+        '#yomitan-float',
+        '#yomichan-float',
+        '[data-yomitan-popup]',
+        '[data-yomitan-extension-installed]',
+        'yomitan-popup',
+        '[id*="yomitan"]',
+        '[id*="yomichan"]',
+        '[class*="yomitan"]',
+        '[class*="yomichan"]',
+      ];
+      for (const sel of selectors) {
+        if (document.querySelector(sel)) return true;
+      }
+      const iframes = document.querySelectorAll("iframe");
+      for (let i = 0; i < iframes.length; i++) {
+        const frame = iframes[i];
+        const name = (frame.getAttribute("name") || "").toLowerCase();
+        const id = (frame.getAttribute("id") || "").toLowerCase();
+        const src = (frame.getAttribute("src") || "").toLowerCase();
+        const cls = String(frame.className || "").toLowerCase();
+        if (
+          name.includes("yomitan") ||
+          name.includes("yomichan") ||
+          name.includes("popup") ||
+          id.includes("yomitan") ||
+          id.includes("yomichan") ||
+          src.includes("popup.html") ||
+          src.includes("-extension://") ||
+          cls.includes("yomitan") ||
+          cls.includes("yomichan")
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (checkYomitan()) {
+      setShowYomitanBanner(true);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (checkYomitan()) {
+        setShowYomitanBanner(true);
+        observer.disconnect();
+      }
+    });
+
+    // Observe document.documentElement because extensions often append popups directly to <html> instead of <body>
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    // Also check when Shift is pressed (Yomitan's default scan modifier key)
+    const handleShiftCheck = (e: KeyboardEvent) => {
+      if (e.key === "Shift" || e.shiftKey) {
+        setTimeout(() => {
+          if (checkYomitan()) {
+            setShowYomitanBanner(true);
+          }
+        }, 120);
+      }
+    };
+    window.addEventListener("keydown", handleShiftCheck);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("keydown", handleShiftCheck);
+    };
+  }, [isLoaded, settings.enableDictionary]);
+
   // Load book data
   useEffect(() => {
     async function load() {
@@ -655,6 +770,17 @@ export default function ReaderPage() {
     };
   }, [settings.theme]);
 
+  // Update browser tab title with the current book title while reading
+  useEffect(() => {
+    if (book?.title) {
+      const prefix = language === "ID" ? "Baca" : "Read";
+      document.title = `${prefix} ${book.title} | Kotori`;
+    }
+    return () => {
+      document.title = "Kotori: Japanese Light Novel & EPUB Reader";
+    };
+  }, [book?.title, language]);
+
   // Save progress periodically
   useEffect(() => {
     if (!book || !isLoaded) return;
@@ -683,7 +809,7 @@ export default function ReaderPage() {
   // listeners (and re-run its cleanup) on every chapter/book change - re-running that cleanup on
   // each chapter change would risk reading contentRef's scroll dimensions after the DOM has
   // already swapped to the NEW chapter's content, saving a meaningless scroll ratio.
-  const saveProgressNowRef = useRef<() => void>(() => {});
+  const saveProgressNowRef = useRef<() => void>(() => { });
   useEffect(() => {
     saveProgressNowRef.current = () => {
       if (!book || !hasMeasuredPositionRef.current) return;
@@ -791,9 +917,9 @@ export default function ReaderPage() {
           img.complete
             ? Promise.resolve()
             : new Promise<void>((resolve) => {
-                img.addEventListener("load", () => resolve(), { once: true });
-                img.addEventListener("error", () => resolve(), { once: true });
-              })
+              img.addEventListener("load", () => resolve(), { once: true });
+              img.addEventListener("error", () => resolve(), { once: true });
+            })
       )
     ).then(() => undefined);
   }, []);
@@ -959,11 +1085,31 @@ export default function ReaderPage() {
       setScanHighlight(rects.length > 0 ? { text: matchedText, rects } : null);
 
       // Refine the popup's anchor from the single hovered character to the whole resolved word.
-      // In vertical writing a word runs DOWNWARD, so a one-character anchor understates where it
-      // ends and the popup, docked just below it, covered the rest of the word.
+      // In vertical writing a word runs DOWNWARD, so a one-character anchor understates where it ends.
+      // If a word wraps across columns/lines (e.g. 飲み at column bottom, 物 at next column top),
+      // anchor to the segment with the most available space (物 at the top) so the popup docks cleanly.
       if (rects.length > 0) {
-        const box = range.getBoundingClientRect();
-        const refined = { x: box.left, y: box.top, width: box.width, height: box.height };
+        let bestRect = rects[0];
+        if (rects.length > 1) {
+          if (settings.writingMode === "vertical") {
+            bestRect = rects.reduce((prev, curr) => {
+              const prevSpace = window.innerHeight - (prev.top + prev.height);
+              const currSpace = window.innerHeight - (curr.top + curr.height);
+              return currSpace > prevSpace ? curr : prev;
+            }, rects[rects.length - 1]);
+          } else {
+            bestRect = rects.reduce((prev, curr) => {
+              const prevSpace = window.innerHeight - (prev.top + prev.height);
+              const currSpace = window.innerHeight - (curr.top + curr.height);
+              return currSpace > prevSpace ? curr : prev;
+            }, rects[0]);
+          }
+        } else {
+          const box = range.getBoundingClientRect();
+          bestRect = { left: box.left, top: box.top, width: box.width, height: box.height };
+        }
+
+        const refined = { x: bestRect.left, y: bestRect.top, width: bestRect.width, height: bestRect.height };
         setSelectionState((prev) => {
           if (!prev) return prev;
           const p = prev.position;
@@ -981,95 +1127,90 @@ export default function ReaderPage() {
     } catch {
       clearScanHighlight();
     }
-  }, [selectionState, clearScanHighlight]);
+  }, [selectionState, clearScanHighlight, settings.writingMode]);
 
   // Yomitan-like Hover/Tap Scanner
   useEffect(() => {
-      const el = contentRef.current;
-      if (!el || !isLoaded || isSettingsOpen || isTocOpen || !(settings.enableDictionary ?? true)) return;
+    const el = contentRef.current;
+    if (!el || !isLoaded || isSettingsOpen || isTocOpen || !(settings.enableDictionary ?? true)) return;
 
-      let scanTimeout: NodeJS.Timeout;
-      let dismissTimeout: NodeJS.Timeout;
+    let scanTimeout: NodeJS.Timeout;
+    let dismissTimeout: NodeJS.Timeout;
 
-      // True when the pointer is over the open popup, or in the short gap leading to it. Moving
-      // from the word to the popup crosses blank space that hits no glyph, and dismissing on that
-      // would close the popup just before the pointer arrives - so treat the popup's box, padded
-      // generously, as still "on target".
-      const isHeadingForPopup = (x: number, y: number) => {
-        const popup = document.querySelector(".selection-popup");
-        if (!popup) return false;
-        const r = popup.getBoundingClientRect();
-        const pad = 32;
-        return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
-      };
+    // True when the pointer is over the open popup, or in the short gap leading to it. Moving
+    // from the word to the popup crosses blank space that hits no glyph, and dismissing on that
+    // would close the popup just before the pointer arrives - so treat the popup's box, padded
+    // generously, as still "on target".
+    const isHeadingForPopup = (x: number, y: number) => {
+      const popup = document.querySelector(".selection-popup");
+      if (!popup) return false;
+      const r = popup.getBoundingClientRect();
+      const pad = 32;
+      return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+    };
 
-      const handleScan = (e: MouseEvent | TouchEvent, x: number, y: number) => {
-        if (isDraggingRef.current) return; // don't flicker single-word popups while drag-selecting a sentence
-        clearTimeout(scanTimeout);
-        const isShiftHeld = (e as MouseEvent).shiftKey === true;
-        const isTouch = e.type === "touchstart";
-        const isShiftMode = settings.dictTrigger === "shift";
-        const isHoverMode = settings.dictTrigger === "hover";
+    const handleScan = (e: MouseEvent, x: number, y: number) => {
+      if (isDraggingRef.current) return; // don't flicker single-word popups while drag-selecting a sentence
+      clearTimeout(scanTimeout);
+      const isShiftHeld = e.shiftKey === true;
+      const isShiftMode = settings.dictTrigger === "shift";
+      const isHoverMode = settings.dictTrigger === "hover";
 
-        // Mouse: only continuous-scan in "hover" mode (opt-in) or "shift" mode while Shift is held.
-        // "click" mode (default) handles mouse lookups via handleContentClick instead - no hover scan here.
-        // Touch always scans instantly on tap regardless of mode.
-        const shouldScan = isTouch || isHoverMode || (isShiftMode && isShiftHeld);
+      // Mouse: only continuous-scan in "hover" mode (opt-in) or "shift" mode while Shift is held.
+      // "click" mode (default) and mobile touch handle lookups via handleContentClick instead - no hover scan here.
+      const shouldScan = isHoverMode || (isShiftMode && isShiftHeld);
 
-        if (shouldScan) {
-          scanTimeout = setTimeout(() => {
-            // Constrained to the chapter: an open popup overlapping the cursor would otherwise
-            // seed the anchor with one of its own text nodes.
-            const pointerData = getTextNodeAtPoint(x, y, el);
-            if (pointerData) {
-              const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
-              if (chunk.text) {
-                clearTimeout(dismissTimeout); // landed on a word again - cancel any pending dismiss
-                const charRect = getCharRect(pointerData.textNode, pointerData.offset);
-                scanAnchorRef.current = pointerData;
-                setSelectionState({
-                  text: chunk.text, // We pass a padded chunk; server resolves just the single word at chunkPos
-                  position: charRect || { x, y, width: 4, height: 20 },
-                  chunkPos: chunk.pos,
-                  explicitFurigana: getExplicitFurigana(pointerData.textNode),
-                });
-                lastDictLookupAtRef.current = Date.now();
-                return;
-              }
+      if (shouldScan) {
+        scanTimeout = setTimeout(() => {
+          // Constrained to the chapter: an open popup overlapping the cursor would otherwise
+          // seed the anchor with one of its own text nodes.
+          const pointerData = getTextNodeAtPoint(x, y, el);
+          if (pointerData) {
+            const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
+            if (chunk.text) {
+              clearTimeout(dismissTimeout); // landed on a word again - cancel any pending dismiss
+              const charRect = getCharRect(pointerData.textNode, pointerData.offset);
+              scanAnchorRef.current = pointerData;
+              setSelectionState({
+                text: chunk.text, // We pass a padded chunk; server resolves just the single word at chunkPos
+                position: charRect || { x, y, width: 4, height: 20 },
+                chunkPos: chunk.pos,
+                explicitFurigana: getExplicitFurigana(pointerData.textNode),
+              });
+              lastDictLookupAtRef.current = Date.now();
+              return;
             }
-            // Hover mode: the cursor is no longer over a resolvable word - live popup follows
-            // the cursor, so dismiss it (unlike click/shift mode, which stay open until dismissed).
-            if (isHoverMode && !isTouch) {
-              if (isHeadingForPopup(x, y)) return;
-              // Short grace period so crossing the blank space between two characters - or the
-              // gap on the way to the popup - does not flicker the popup shut.
-              clearTimeout(dismissTimeout);
-              dismissTimeout = setTimeout(() => {
-                setSelectionState(null);
-                clearScanHighlight();
-              }, 200);
-            }
-          }, isTouch ? 50 : 20); // aggressive debounce for instant feel
-        }
-      };
+          }
+          // Hover mode: the cursor is no longer over a resolvable word - live popup follows
+          // the cursor, so dismiss it (unlike click/shift mode, which stay open until dismissed).
+          if (isHoverMode) {
+            if (isHeadingForPopup(x, y)) return;
+            // Short grace period so crossing the blank space between two characters - or the
+            // gap on the way to the popup - does not flicker the popup shut.
+            clearTimeout(dismissTimeout);
+            dismissTimeout = setTimeout(() => {
+              setSelectionState(null);
+              clearScanHighlight();
+            }, 200);
+          }
+        }, 20);
+      }
+    };
 
-      const onMouseMove = (e: MouseEvent) => handleScan(e, e.clientX, e.clientY);
-      const onTouchStart = (e: TouchEvent) => handleScan(e, e.touches[0].clientX, e.touches[0].clientY);
+    const onMouseMove = (e: MouseEvent) => handleScan(e, e.clientX, e.clientY);
 
-      el.addEventListener("mousemove", onMouseMove);
-      el.addEventListener("touchstart", onTouchStart, { passive: true });
-      return () => {
-        el.removeEventListener("mousemove", onMouseMove);
-        el.removeEventListener("touchstart", onTouchStart);
-        clearTimeout(scanTimeout);
-        clearTimeout(dismissTimeout);
-      };
+    el.addEventListener("mousemove", onMouseMove);
+    return () => {
+      el.removeEventListener("mousemove", onMouseMove);
+      clearTimeout(scanTimeout);
+      clearTimeout(dismissTimeout);
+    };
   }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger]);
 
   // Reset scroll and clear active selection popup whenever chapter index or writing mode changes.
   // Exception: if a saved reading position is pending restoration (set on initial load from
   // saved progress), apply that exact position instead of jumping to the chapter start.
-      useEffect(() => {
+  useEffect(() => {
     if (isLoaded) {
       if (pendingScrollRestoreRef.current !== null) {
         applyScrollPosition(pendingScrollRestoreRef.current);
@@ -1239,12 +1380,17 @@ export default function ReaderPage() {
       return;
     }
 
-    // Click-triggered dictionary lookup (Yomitan-style: click a word, popup appears instantly).
-    // Only for mouse gestures in "click" mode - touch already gets an instant popup from the
-    // tap-scanner effect on touchstart, so re-running it here would double-fetch the same word.
+    // If user was scrolling/swiping on mobile touch, ignore this click
+    if (isTouchScrollRef.current) {
+      isTouchScrollRef.current = false;
+      return;
+    }
+
+    // Click/Tap-triggered dictionary lookup (Yomitan-style: click or tap a word, popup appears instantly).
+    // On touch devices or when in "click" mode, clicking/tapping a word resolves it.
     const dictEnabled = settings.enableDictionary ?? true;
     const isClickMode = !settings.dictTrigger || settings.dictTrigger === "click";
-    if (dictEnabled && isClickMode && !isTouchGestureRef.current) {
+    if (dictEnabled && (isClickMode || isTouchGestureRef.current)) {
       const pointerData = getTextNodeAtPoint(e.clientX, e.clientY, contentRef.current);
       if (pointerData) {
         const chunk = extractContextChunk(pointerData.textNode, pointerData.offset, 15);
@@ -1470,6 +1616,69 @@ export default function ReaderPage() {
             )}
           </button>
 
+          {/* Quick Toggle Dictionary */}
+          <button
+            onClick={() => {
+              const nextState = !(settings.enableDictionary ?? true);
+              setSettings({ enableDictionary: nextState });
+              if (!nextState) {
+                setSelectionState(null);
+                clearScanHighlight();
+              }
+              triggerChapterNotice(
+                language === "ID"
+                  ? (nextState ? "Kamus bawaan diaktifkan" : "Kamus bawaan dinonaktifkan")
+                  : (nextState ? "Built-in dictionary enabled" : "Built-in dictionary disabled")
+              );
+            }}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              backgroundColor: (settings.enableDictionary ?? true)
+                ? "var(--kb-bg-secondary)"
+                : "rgba(239, 68, 68, 0.12)",
+              border: (settings.enableDictionary ?? true)
+                ? "1px solid var(--kb-border)"
+                : "1px solid rgba(239, 68, 68, 0.4)",
+              color: (settings.enableDictionary ?? true)
+                ? "var(--kb-primary)"
+                : "var(--kb-text-muted)",
+              cursor: "pointer",
+              flexShrink: 0,
+              transition: "all 0.2s ease",
+            }}
+            title={
+              (settings.enableDictionary ?? true)
+                ? (language === "ID"
+                  ? "Kamus Bawaan: Aktif"
+                  : "Built-in Dictionary: On")
+                : (language === "ID"
+                  ? "Kamus Bawaan: Nonaktif"
+                  : "Built-in Dictionary: Off")
+            }
+          >
+            <BookOpen style={{ width: "16px", height: "16px" }} />
+            {!(settings.enableDictionary ?? true) && (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "3px",
+                  right: "3px",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ef4444",
+                  border: "1.5px solid var(--kb-bg)",
+                }}
+              />
+            )}
+          </button>
+
           <button
             onClick={() => { setTocOpen(!isTocOpen); setSettingsOpen(false); }}
             style={{
@@ -1512,6 +1721,115 @@ export default function ReaderPage() {
           </button>
         </div>
       </header>
+
+      {/* Yomitan Extension Detected Floating Prompt */}
+      {showYomitanBanner && (settings.enableDictionary ?? true) && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed",
+            top: showToolbar ? "72px" : "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 90,
+            maxWidth: "520px",
+            width: "calc(100% - 32px)",
+            borderRadius: "14px",
+            padding: "12px 16px",
+            backgroundColor: "var(--kb-surface)",
+            color: "var(--kb-text)",
+            border: "1px solid var(--kb-primary)",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.2)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            animation: "fadeIn 0.25s ease",
+            transition: "top 0.3s ease",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "8px",
+                backgroundColor: "rgba(99, 102, 241, 0.15)",
+                color: "var(--kb-primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                marginTop: "2px",
+              }}
+            >
+              <Sparkles style={{ width: "16px", height: "16px" }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, lineHeight: 1.3 }}>
+                {language === "ID" ? "Ekstensi Yomitan Terdeteksi" : "Yomitan Extension Detected"}
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--kb-text-secondary)", marginTop: "2px", lineHeight: 1.4 }}>
+                {language === "ID"
+                  ? "Ekstensi Yomitan aktif di browser Anda. Nonaktifkan kamus bawaan Kotori agar tidak saling bertabrakan?"
+                  : "Yomitan extension detected. Disable Kotori's built-in dictionary to prevent conflicts?"}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            <button
+              onClick={() => {
+                setSettings({ enableDictionary: false });
+                setSelectionState(null);
+                clearScanHighlight();
+                setShowYomitanBanner(false);
+                sessionStorage.setItem("kotori_yomitan_prompt_dismissed", "true");
+                triggerChapterNotice(
+                  language === "ID"
+                    ? "Kamus bawaan dinonaktifkan"
+                    : "Built-in dictionary disabled"
+                );
+              }}
+              style={{
+                padding: "6px 10px",
+                borderRadius: "8px",
+                fontSize: "11px",
+                fontWeight: 700,
+                backgroundColor: "var(--kb-primary)",
+                color: "#ffffff",
+                border: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "opacity 0.2s ease",
+              }}
+            >
+              {language === "ID" ? "Matikan Kamus Kotori" : "Disable Built-in"}
+            </button>
+            <button
+              onClick={() => {
+                setShowYomitanBanner(false);
+                sessionStorage.setItem("kotori_yomitan_prompt_dismissed", "true");
+              }}
+              style={{
+                padding: "6px",
+                borderRadius: "8px",
+                backgroundColor: "transparent",
+                color: "var(--kb-text-muted)",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={language === "ID" ? "Abaikan" : "Dismiss"}
+            >
+              <X style={{ width: "16px", height: "16px" }} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ===== Main Reading Area ===== */}
       <main

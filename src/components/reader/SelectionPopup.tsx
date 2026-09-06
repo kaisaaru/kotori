@@ -28,52 +28,70 @@ interface SelectionPopupProps {
 // Wide viewports dock the panel beside the word; narrow ones stack it below (or above) instead,
 // since there is no sideways room there and docking would cover the word being read.
 function computeLayout(anchor: { x: number; y: number; width: number; height: number }) {
-  // Matches Yomitan's own defaults (popupWidth 400, popupHeight 250, popupVerticalOffset 10).
   const margin = 16;
-  const popupWidth = Math.min(400, window.innerWidth - margin * 2);
-  const panelHeight = Math.min(250, window.innerHeight - margin * 2);
-  // Yomitan's popupVerticalOffset default. Docking any tighter makes the popup overlap the very
-  // word it describes, and the reader hit-tests that spot; the pointer-toward-popup case is
-  // handled by the dismiss grace period instead, not by shrinking this.
   const offset = 10;
+  const popupWidth = Math.min(400, window.innerWidth - margin * 2);
+  const maxPanelHeight = Math.min(280, window.innerHeight - margin * 2);
 
   const anchorRight = anchor.x + anchor.width;
   const anchorBottom = anchor.y + anchor.height;
 
-  // On a narrow screen there is no room to sit beside the word - docking sideways there just
-  // covers it, which is exactly what the reader is trying to look at. Stack vertically instead:
-  // below the word by preference, above it when the space below cannot fit the panel.
+  // Horizontal position:
+  // On narrow screens (mobile / narrow pane), center popup horizontally on the anchor
   const isNarrow = window.innerWidth < popupWidth + anchor.width + margin * 2 + offset * 2;
+  let left: number;
   if (isNarrow) {
-    const left = Math.max(margin, Math.min(
-      anchor.x + anchor.width / 2 - popupWidth / 2,
-      window.innerWidth - popupWidth - margin
-    ));
-    const spaceBelow = window.innerHeight - anchorBottom - offset - margin;
-    const spaceAbove = anchor.y - offset - margin;
-    const placeBelow = spaceBelow >= panelHeight || spaceBelow >= spaceAbove;
-    // Shrink to the available side rather than clamping into the word: a clamp would slide the
-    // panel back over the very word it describes, which is the thing this layout exists to avoid.
-    // The panel scrolls internally, so a shorter box costs nothing but a little visible content.
-    const available = Math.max(120, placeBelow ? spaceBelow : spaceAbove);
-    const height = Math.min(panelHeight, available);
-    const top = placeBelow ? anchorBottom + offset : Math.max(margin, anchor.y - offset - height);
-    return { left, top, popupWidth, panelHeight: height };
+    left = Math.max(
+      margin,
+      Math.min(
+        anchor.x + anchor.width / 2 - popupWidth / 2,
+        window.innerWidth - popupWidth - margin
+      )
+    );
+  } else {
+    // Wide screens: dock beside the word (right by preference, left if right lacks room)
+    const spaceRight = window.innerWidth - anchorRight;
+    const dockRight = spaceRight >= popupWidth + margin || spaceRight >= anchor.x;
+    left = dockRight
+      ? Math.min(anchorRight + offset, window.innerWidth - popupWidth - margin)
+      : Math.max(margin, anchor.x - popupWidth - offset);
   }
 
-  const spaceRight = window.innerWidth - anchorRight;
-  const dockRight = spaceRight >= popupWidth + margin || spaceRight >= anchor.x;
-  const left = dockRight
-    ? Math.min(anchorRight + offset, window.innerWidth - popupWidth - margin)
-    : Math.max(margin, anchor.x - popupWidth - offset);
+  // Vertical position:
+  // Calculate space available below and above the anchor
+  const spaceBelow = window.innerHeight - anchorBottom - offset - margin;
+  const spaceAbove = anchor.y - offset - margin;
 
-  // Normally dock below the word; flip above it when there isn't enough room underneath (e.g.
-  // the word sits near the bottom of the viewport) and there's more room above instead.
-  const spaceBelow = window.innerHeight - anchorBottom;
-  const dockBelow = spaceBelow >= panelHeight + margin || spaceBelow >= anchor.y;
-  const top = dockBelow
-    ? Math.min(anchor.y - offset, window.innerHeight - margin - panelHeight)
-    : Math.max(margin, anchorBottom - panelHeight + offset);
+  let top: number;
+  let panelHeight: number;
+
+  if (spaceBelow >= 180) {
+    // Ample room below the anchor: dock below
+    panelHeight = Math.min(maxPanelHeight, spaceBelow);
+    top = anchorBottom + offset;
+  } else if (spaceAbove >= 180) {
+    // Ample room above the anchor: dock above
+    panelHeight = Math.min(maxPanelHeight, spaceAbove);
+    top = anchor.y - offset - panelHeight;
+  } else if (spaceAbove >= spaceBelow) {
+    // More room above than below: dock above and scale height to fit
+    panelHeight = Math.max(120, Math.min(maxPanelHeight, spaceAbove));
+    top = anchor.y - offset - panelHeight;
+  } else {
+    // More room below than above: dock below and scale height to fit
+    panelHeight = Math.max(120, Math.min(maxPanelHeight, spaceBelow));
+    top = anchorBottom + offset;
+  }
+
+  // HARD VIEWPORT CLAMP: Ensure popup is 100% visible inside the viewport on all screens
+  if (top + panelHeight > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - margin - panelHeight);
+  }
+  if (top < margin) {
+    top = margin;
+    panelHeight = Math.min(panelHeight, window.innerHeight - margin * 2);
+  }
+  left = Math.max(margin, Math.min(left, window.innerWidth - popupWidth - margin));
 
   return { left, top, popupWidth, panelHeight };
 }
