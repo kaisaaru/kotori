@@ -121,6 +121,10 @@ const TRANSLATIONS = {
     progressReset: (title: string) => `Kemajuan membaca "${title}" berhasil di-reset.`,
     resetConfirmTitle: "Reset Kemajuan Membaca",
     resetConfirmDesc: (title: string) => `Apakah Anda yakin ingin me-reset kemajuan membaca untuk novel "${title}"? Semua progres membaca Anda akan diulang dari awal.`,
+    nonJapaneseWarningTitle: "Bukan Novel Jepang?",
+    nonJapaneseWarningDesc: (title: string) => `Novel "${title}" terdeteksi bukan novel berbahasa Jepang. Fitur kamus kosakata, furigana, dan lookup Kotori tidak akan berfungsi dengan baik untuk novel ini.\n\nApakah Anda tetap ingin menambahkannya ke perpustakaan?`,
+    nonJapaneseConfirmBtn: "Tetap Tambahkan",
+    nonJapaneseCancelBtn: "Batal",
     bookDeleted: (title: string) => `Novel "${title}" berhasil dihapus.`,
     feedbackBtn: "Saran & Kritik",
     feedbackTitle: "Saran & Kritik untuk Kotori",
@@ -174,6 +178,10 @@ const TRANSLATIONS = {
     progressReset: (title: string) => `Reading progress for "${title}" has been reset.`,
     resetConfirmTitle: "Reset Reading Progress",
     resetConfirmDesc: (title: string) => `Are you sure you want to reset the reading progress for the novel "${title}"? Your progress will start over from the beginning.`,
+    nonJapaneseWarningTitle: "Not a Japanese Novel?",
+    nonJapaneseWarningDesc: (title: string) => `"${title}" does not appear to be a Japanese novel. Kotori's vocabulary dictionary, furigana, and word lookup will not work for this book.\n\nDo you still want to add it to your library?`,
+    nonJapaneseConfirmBtn: "Add Anyway",
+    nonJapaneseCancelBtn: "Cancel",
     bookDeleted: (title: string) => `Novel "${title}" was successfully deleted.`,
     feedbackBtn: "Feedback",
     feedbackTitle: "Feedback & Suggestions",
@@ -305,6 +313,12 @@ export default function HomePage() {
   };
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [resetConfirm, setResetConfirm] = useState<string | null>(null);
+  const [pendingNonJapaneseBook, setPendingNonJapaneseBook] = useState<{
+    book: BookMeta;
+    chapters: Chapter[];
+    remainingFiles: File[];
+    updatedBooks: BookMeta[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [toasts, setToasts] = useState<Array<{
@@ -387,24 +401,22 @@ export default function HomePage() {
     setIsLoading(false);
   };
 
-  const handleUpload = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    const epubFiles = fileArray.filter(
-      (f) => f.name.endsWith(".epub") || f.type === "application/epub+zip"
-    );
-    if (epubFiles.length === 0) {
-      alert("Please select an EPUB file.");
-      return;
-    }
-    setIsUploading(true);
-    let updatedBooks = [...books];
-    for (const file of epubFiles) {
+  const processUploadQueue = useCallback(
+    async (queue: File[], currentUpdatedBooks: BookMeta[]) => {
+      if (queue.length === 0) {
+        setIsUploading(false);
+        setUploadProgress("");
+        await loadBooks();
+        return;
+      }
+
+      const [file, ...remaining] = queue;
       try {
         setUploadProgress(t.uploadReading(truncate(file.name, 35)));
         const { parseEpub } = await import("@/services/epub-parser");
-        const { book, chapters } = await parseEpub(file);
+        const { book, chapters, isJapanese } = await parseEpub(file);
 
-        const exists = updatedBooks.some(
+        const exists = currentUpdatedBooks.some(
           (b) =>
             b.title.toLowerCase().trim() === book.title.toLowerCase().trim() &&
             b.author.toLowerCase().trim() === book.author.toLowerCase().trim()
@@ -412,22 +424,79 @@ export default function HomePage() {
 
         if (exists) {
           showToast(t.bookExists(truncate(book.title, 40)), "error");
-          continue;
+          await processUploadQueue(remaining, currentUpdatedBooks);
+          return;
         }
 
+        if (!isJapanese) {
+          // Pause upload and prompt confirmation
+          setIsUploading(false);
+          setUploadProgress("");
+          setPendingNonJapaneseBook({
+            book,
+            chapters,
+            remainingFiles: remaining,
+            updatedBooks: currentUpdatedBooks,
+          });
+          return;
+        }
+
+        setUploadProgress(t.uploadSaving(truncate(book.title, 35)));
+        await saveBook(book, chapters);
+        currentUpdatedBooks.push(book);
+        showToast(t.bookAdded(truncate(book.title, 40)), "success");
+        await processUploadQueue(remaining, currentUpdatedBooks);
+      } catch (error) {
+        console.error(`Failed to parse ${file.name}:`, error);
+        alert(`Failed to parse "${file.name}". Make sure it's a valid EPUB file.`);
+        await processUploadQueue(remaining, currentUpdatedBooks);
+      }
+    },
+    [loadBooks, showToast, t]
+  );
+
+  const handleUpload = useCallback(
+    async (files: FileList | File[]) => {
+      const fileArray = Array.from(files);
+      const epubFiles = fileArray.filter(
+        (f) => f.name.endsWith(".epub") || f.type === "application/epub+zip"
+      );
+      if (epubFiles.length === 0) {
+        alert("Please select an EPUB file.");
+        return;
+      }
+      setIsUploading(true);
+      await processUploadQueue(epubFiles, [...books]);
+    },
+    [books, processUploadQueue]
+  );
+
+  const handleConfirmNonJapanese = async (accept: boolean) => {
+    if (!pendingNonJapaneseBook) return;
+    const { book, chapters, remainingFiles, updatedBooks } = pendingNonJapaneseBook;
+    setPendingNonJapaneseBook(null);
+
+    if (accept) {
+      setIsUploading(true);
+      try {
         setUploadProgress(t.uploadSaving(truncate(book.title, 35)));
         await saveBook(book, chapters);
         updatedBooks.push(book);
         showToast(t.bookAdded(truncate(book.title, 40)), "success");
       } catch (error) {
-        console.error(`Failed to parse ${file.name}:`, error);
-        alert(`Failed to parse "${file.name}". Make sure it's a valid EPUB file.`);
+        console.error(`Failed to save ${book.title}:`, error);
+        alert(`Failed to save "${book.title}".`);
+      }
+      await processUploadQueue(remainingFiles, updatedBooks);
+    } else {
+      if (remainingFiles.length > 0) {
+        setIsUploading(true);
+        await processUploadQueue(remainingFiles, updatedBooks);
+      } else {
+        await loadBooks();
       }
     }
-    setIsUploading(false);
-    setUploadProgress("");
-    await loadBooks();
-  }, [books, language, showToast, loadBooks, t]);
+  };
 
   const handleDelete = async (bookId: string) => {
     const book = books.find((b) => b.id === bookId);
@@ -801,6 +870,7 @@ export default function HomePage() {
             alignItems: "center",
             justifyContent: "space-between",
             padding: "0 32px",
+            gap: "16px",
           }}
         >
           {/* Mobile Hamburger Button (Left side on Mobile) */}
@@ -838,6 +908,7 @@ export default function HomePage() {
               alignItems: "center",
               gap: "12px",
               cursor: "pointer",
+              flexShrink: 0,
             }}
             onClick={() => router.push("/")}
           >
@@ -853,18 +924,27 @@ export default function HomePage() {
                 flexShrink: 0,
               }}
             />
-            <div>
-              <h1 style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <h1 style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2, whiteSpace: "nowrap" }}>
                 Kotori
               </h1>
-              <p className="kb-logo-subtitle" style={{ fontSize: "12px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "1px" }}>
+              <p className="kb-logo-subtitle" style={{ fontSize: "12px", fontWeight: 500, color: "var(--kb-text-muted)", marginTop: "1px", whiteSpace: "nowrap" }}>
                 {t.subtitle}
               </p>
             </div>
           </div>
 
           {/* Search Input (Desktop view in center, mobile view on line 2) */}
-          <div className="kb-search-container" style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <div
+            className="kb-search-container"
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              flex: "0 1 320px",
+              minWidth: "160px",
+            }}
+          >
             <Search
               style={{
                 position: "absolute",
@@ -883,7 +963,7 @@ export default function HomePage() {
               className="kb-search-input"
               style={{
                 height: "40px",
-                width: "240px",
+                width: "100%",
                 paddingLeft: "42px",
                 paddingRight: "16px",
                 fontSize: "13px",
@@ -935,6 +1015,7 @@ export default function HomePage() {
             {/* Feedback Button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
+              className="kb-header-feedback-btn"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -948,6 +1029,8 @@ export default function HomePage() {
                 border: "1px solid rgba(99,102,241,0.2)",
                 cursor: "pointer",
                 transition: "all 0.2s ease",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--kb-primary)";
@@ -959,8 +1042,8 @@ export default function HomePage() {
               }}
               title={t.feedbackBtn}
             >
-              <Sparkles style={{ width: "15px", height: "15px" }} />
-              <span>{t.feedbackBtn}</span>
+              <Sparkles style={{ width: "15px", height: "15px", flexShrink: 0 }} />
+              <span className="kb-header-btn-label">{t.feedbackBtn}</span>
             </button>
 
             {/* Language Switcher (ID / EN) */}
@@ -1059,6 +1142,7 @@ export default function HomePage() {
             {/* Add Book Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
+              className="kb-header-add-btn"
               style={{
                 height: "40px",
                 paddingLeft: "16px",
@@ -2268,6 +2352,103 @@ export default function HomePage() {
                   }}
                 >
                   Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Non-Japanese Novel Confirmation Modal */}
+      {pendingNonJapaneseBook && (() => {
+        const displayTitle = truncate(pendingNonJapaneseBook.book.title, 45);
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              backgroundColor: "var(--kb-overlay)",
+              backdropFilter: "blur(6px)",
+            }}
+            onClick={() => handleConfirmNonJapanese(false)}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "420px",
+                borderRadius: "24px",
+                padding: "28px",
+                backgroundColor: "var(--kb-surface)",
+                border: "1px solid var(--kb-border)",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+                animation: "scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius: "14px",
+                  backgroundColor: "rgba(234, 179, 8, 0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "16px",
+                  color: "#eab308",
+                }}
+              >
+                <AlertTriangle style={{ width: "24px", height: "24px" }} />
+              </div>
+              <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "8px" }}>
+                {t.nonJapaneseWarningTitle}
+              </h3>
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "var(--kb-text-secondary)",
+                  lineHeight: 1.6,
+                  marginBottom: "24px",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {t.nonJapaneseWarningDesc(displayTitle)}
+              </p>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => handleConfirmNonJapanese(false)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 18px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--kb-text-secondary)",
+                    backgroundColor: "var(--kb-bg-secondary)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.nonJapaneseCancelBtn}
+                </button>
+                <button
+                  onClick={() => handleConfirmNonJapanese(true)}
+                  style={{
+                    borderRadius: "12px",
+                    padding: "10px 18px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "white",
+                    backgroundColor: "var(--kb-accent)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t.nonJapaneseConfirmBtn}
                 </button>
               </div>
             </div>

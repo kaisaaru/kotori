@@ -271,6 +271,66 @@ body {
   display: none !important;
 }
 
+.kb-logo-container {
+  flex-shrink: 0;
+}
+
+.kb-logo-subtitle {
+  white-space: nowrap;
+}
+
+/* Responsive adjustments for desktop/laptop/tablet screens */
+@media (max-width: 1180px) {
+  .kb-header-inner {
+    padding: 0 20px !important;
+    gap: 12px !important;
+  }
+  .kb-header-feedback-btn {
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .kb-header-feedback-btn .kb-header-btn-label {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1040px) {
+  .kb-logo-subtitle {
+    display: none !important;
+  }
+  .kb-add-button-text {
+    display: none !important;
+  }
+  .kb-header-add-btn {
+    width: 40px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .kb-header-inner {
+    padding: 0 16px !important;
+    gap: 10px !important;
+  }
+  .kb-search-container {
+    max-width: 240px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .kb-desktop-controls {
+    gap: 6px !important;
+  }
+  .kb-lang-switcher button {
+    padding: 4px 7px !important;
+    font-size: 11px !important;
+  }
+  .kb-search-container {
+    min-width: 130px !important;
+    max-width: 200px !important;
+  }
+}
+
 /* ===== Mobile Responsive Rules ===== */
 @media (max-width: 768px) {
   .kb-mobile-hamburger-btn {

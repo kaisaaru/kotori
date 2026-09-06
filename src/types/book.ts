@@ -9,6 +9,7 @@ export interface BookMeta {
   uploadedAt: number; // timestamp
   lastReadAt: number | null;
   englishTitle?: string;
+  isJapanese?: boolean;
 }
 
 export interface Chapter {

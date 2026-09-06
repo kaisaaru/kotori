@@ -223,6 +223,30 @@ export default function ReaderPage() {
   // Polled by DictionaryPrewarmer in the root layout - null means "not known yet", not "not ready".
   const dictStatus = useDictionaryStore((s) => s.status);
 
+  // Check if current book is a Japanese novel
+  const isBookJapanese = useMemo(() => {
+    if (!book) return true;
+    if (book.isJapanese !== undefined) return book.isJapanese;
+    const lang = (book.language || "").toLowerCase().trim();
+    if (lang && !lang.startsWith("ja") && lang !== "jpn") return false;
+    if (chapters && chapters.length > 0) {
+      let sample = `${book.title} ${book.author} `;
+      for (const ch of chapters) {
+        const plain = ch.htmlContent.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+        if (plain.length > 10) {
+          sample += plain.slice(0, 1000) + " ";
+          if (sample.length > 2000) break;
+        }
+      }
+      const kanaMatches = sample.match(/[\u3040-\u309F\u30A0-\u30FF]/g);
+      if ((kanaMatches?.length ?? 0) >= 3) return true;
+      const kanjiMatches = sample.match(/[\u4E00-\u9FAF]/g);
+      if ((kanjiMatches?.length ?? 0) >= 3 && (lang.startsWith("ja") || lang === "jpn")) return true;
+      return false;
+    }
+    return true;
+  }, [book, chapters]);
+
   const mainRef = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -502,8 +526,8 @@ export default function ReaderPage() {
       isPointerDownRef.current = false;
       isDraggingRef.current = false;
 
-      // If user disabled Dictionary in Reader Settings, do not show dictionary popups!
-      if (settings.enableDictionary === false) {
+      // If user disabled Dictionary in Reader Settings or novel is not Japanese, do not show dictionary popups!
+      if (!isBookJapanese || settings.enableDictionary === false) {
         return;
       }
 
@@ -642,14 +666,14 @@ export default function ReaderPage() {
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleMouseUp);
     };
-  }, [settings.enableDictionary, book, currentChapterIndex]);
+  }, [settings.enableDictionary, book, currentChapterIndex, isBookJapanese]);
 
   // Yomitan / Yomichan extension auto-detection
   const [showYomitanBanner, setShowYomitanBanner] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded) return;
-    if (settings.enableDictionary === false) return; // user already disabled dictionary
+    if (!isBookJapanese || settings.enableDictionary === false) return; // user already disabled dictionary or not Japanese book
     if (sessionStorage.getItem("kotori_yomitan_prompt_dismissed") === "true") return;
 
     const checkYomitan = (): boolean => {
@@ -1132,7 +1156,7 @@ export default function ReaderPage() {
   // Yomitan-like Hover/Tap Scanner
   useEffect(() => {
     const el = contentRef.current;
-    if (!el || !isLoaded || isSettingsOpen || isTocOpen || !(settings.enableDictionary ?? true)) return;
+    if (!el || !isLoaded || isSettingsOpen || isTocOpen || !isBookJapanese || !(settings.enableDictionary ?? true)) return;
 
     let scanTimeout: NodeJS.Timeout;
     let dismissTimeout: NodeJS.Timeout;
@@ -1205,7 +1229,7 @@ export default function ReaderPage() {
       clearTimeout(scanTimeout);
       clearTimeout(dismissTimeout);
     };
-  }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger]);
+  }, [isLoaded, isSettingsOpen, isTocOpen, settings.enableDictionary, settings.dictTrigger, isBookJapanese]);
 
   // Reset scroll and clear active selection popup whenever chapter index or writing mode changes.
   // Exception: if a saved reading position is pending restoration (set on initial load from
@@ -1388,7 +1412,7 @@ export default function ReaderPage() {
 
     // Click/Tap-triggered dictionary lookup (Yomitan-style: click or tap a word, popup appears instantly).
     // On touch devices or when in "click" mode, clicking/tapping a word resolves it.
-    const dictEnabled = settings.enableDictionary ?? true;
+    const dictEnabled = isBookJapanese && (settings.enableDictionary ?? true);
     const isClickMode = !settings.dictTrigger || settings.dictTrigger === "click";
     if (dictEnabled && (isClickMode || isTouchGestureRef.current)) {
       const pointerData = getTextNodeAtPoint(e.clientX, e.clientY, contentRef.current);
@@ -1618,7 +1642,9 @@ export default function ReaderPage() {
 
           {/* Quick Toggle Dictionary */}
           <button
+            disabled={!isBookJapanese}
             onClick={() => {
+              if (!isBookJapanese) return;
               const nextState = !(settings.enableDictionary ?? true);
               setSettings({ enableDictionary: nextState });
               if (!nextState) {
@@ -1639,21 +1665,32 @@ export default function ReaderPage() {
               alignItems: "center",
               justifyContent: "center",
               position: "relative",
-              backgroundColor: (settings.enableDictionary ?? true)
+              backgroundColor: !isBookJapanese
+                ? "var(--kb-bg-secondary)"
+                : (settings.enableDictionary ?? true)
                 ? "var(--kb-bg-secondary)"
                 : "rgba(239, 68, 68, 0.12)",
-              border: (settings.enableDictionary ?? true)
+              border: !isBookJapanese
+                ? "1px solid var(--kb-border)"
+                : (settings.enableDictionary ?? true)
                 ? "1px solid var(--kb-border)"
                 : "1px solid rgba(239, 68, 68, 0.4)",
-              color: (settings.enableDictionary ?? true)
+              color: !isBookJapanese
+                ? "var(--kb-text-muted)"
+                : (settings.enableDictionary ?? true)
                 ? "var(--kb-primary)"
                 : "var(--kb-text-muted)",
-              cursor: "pointer",
+              cursor: !isBookJapanese ? "not-allowed" : "pointer",
+              opacity: !isBookJapanese ? 0.45 : 1,
               flexShrink: 0,
               transition: "all 0.2s ease",
             }}
             title={
-              (settings.enableDictionary ?? true)
+              !isBookJapanese
+                ? (language === "ID"
+                  ? "Kamus dinonaktifkan (Bukan novel Jepang)"
+                  : "Dictionary disabled (Not a Japanese novel)")
+                : (settings.enableDictionary ?? true)
                 ? (language === "ID"
                   ? "Kamus Bawaan: Aktif"
                   : "Built-in Dictionary: On")
@@ -1663,7 +1700,7 @@ export default function ReaderPage() {
             }
           >
             <BookOpen style={{ width: "16px", height: "16px" }} />
-            {!(settings.enableDictionary ?? true) && (
+            {isBookJapanese && !(settings.enableDictionary ?? true) && (
               <span
                 style={{
                   position: "absolute",
@@ -1723,7 +1760,7 @@ export default function ReaderPage() {
       </header>
 
       {/* Yomitan Extension Detected Floating Prompt */}
-      {showYomitanBanner && (settings.enableDictionary ?? true) && (
+      {showYomitanBanner && isBookJapanese && (settings.enableDictionary ?? true) && (
         <div
           role="alert"
           style={{
@@ -2324,6 +2361,7 @@ export default function ReaderPage() {
           onSettingsChange={setSettings}
           onClose={() => setSettingsOpen(false)}
           language={language}
+          isJapaneseBook={isBookJapanese}
         />
       )}
 

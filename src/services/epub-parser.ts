@@ -20,7 +20,7 @@ interface SpineItem {
  */
 export async function parseEpub(
   file: File
-): Promise<{ book: BookMeta; chapters: Chapter[] }> {
+): Promise<{ book: BookMeta; chapters: Chapter[]; isJapanese: boolean }> {
   const zip = await JSZip.loadAsync(file);
 
   // 1. Find the rootfile path from META-INF/container.xml
@@ -284,19 +284,62 @@ export async function parseEpub(
     });
   }
 
+  // 7. Check if novel contains Japanese content
+  let sampleText = `${title} ${author} `;
+  for (const ch of chapters) {
+    const plain = ch.htmlContent.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    if (plain.length > 10) {
+      sampleText += plain.slice(0, 1000) + " ";
+      if (sampleText.length > 3000) break;
+    }
+  }
+  const isJapanese = detectIsJapanese(language, sampleText);
+
   const book: BookMeta = {
     id: bookId,
     title,
     author,
-    language,
+    language: isJapanese ? (language || "ja") : (language === "ja" ? "other" : language || "other"),
     coverUrl,
     fileSize: file.size,
     totalChapters: chapters.length,
     uploadedAt: Date.now(),
     lastReadAt: null,
+    isJapanese,
   };
 
-  return { book, chapters };
+  return { book, chapters, isJapanese };
+}
+
+/**
+ * Detect whether text content or EPUB metadata indicates Japanese.
+ * Looks for Japanese Hiragana and Katakana characters (exclusive to Japanese)
+ * as well as Kanji characters.
+ */
+export function detectIsJapanese(
+  metaLanguage: string,
+  sampleText: string
+): boolean {
+  const cleanText = sampleText.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!cleanText) return false;
+
+  // Hiragana (\u3040-\u309F) and Katakana (\u30A0-\u30FF)
+  const kanaMatches = cleanText.match(/[\u3040-\u309F\u30A0-\u30FF]/g);
+  const kanaCount = kanaMatches ? kanaMatches.length : 0;
+
+  // CJK Unified Ideographs / Kanji (\u4E00-\u9FAF)
+  const kanjiMatches = cleanText.match(/[\u4E00-\u9FAF]/g);
+  const kanjiCount = kanjiMatches ? kanjiMatches.length : 0;
+
+  // 1. If Kana count is >= 3 anywhere in the sample text/title/author, it is definitely Japanese
+  if (kanaCount >= 3) return true;
+
+  // 2. If metadata explicitly indicates Japanese, verify with at least 1 Kana or Kanji
+  const normLang = (metaLanguage || "").toLowerCase().trim();
+  const isMetaJp = normLang.startsWith("ja") || normLang === "jpn";
+  if (isMetaJp && (kanaCount >= 1 || kanjiCount >= 3)) return true;
+
+  return false;
 }
 
 /** Extract an image from the ZIP and return as a data URL */

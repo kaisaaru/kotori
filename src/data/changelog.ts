@@ -11,6 +11,22 @@ export interface ChangelogEntry {
 // CURRENT_VERSION below always follows automatically.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.4.1",
+    date: "2026-09-07",
+    changes: {
+      id: [
+        "- Pengecekan otomatis novel non-Jepang saat memilih/mengunggah file EPUB dengan dialog konfirmasi.",
+        "- Tombol kamus dan fitur pencarian kata otomatis dinonaktifkan saat membuka novel yang bukan berbahasa Jepang.",
+        "- Perbaikan tata letak & responsivitas header: mencegah teks subtitle logo terlipat menjadi 2 baris serta penyesuaian tombol adaptif pada layar laptop dan tablet.",
+      ],
+      en: [
+        "- Automatic non-Japanese novel detection when uploading EPUB files with confirmation modal prompt.",
+        "- Dictionary toggle button and word lookup features are automatically disabled when reading non-Japanese novels.",
+        "- Improved header layout & responsiveness: prevented logo subtitle from wrapping into 2 lines and made header controls adapt seamlessly on laptop and tablet screens.",
+      ],
+    },
+  },
+  {
     version: "0.4.0",
     date: "2026-09-07",
     changes: {
