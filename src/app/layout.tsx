@@ -1,18 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_JP } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
-});
-const notoSansJP = Noto_Sans_JP({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  display: "swap",
-  preload: false,
-  variable: "--font-noto-sans-jp",
 });
 
 const SITE_URL = "https://readkotori.vercel.app";
@@ -83,7 +76,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${notoSansJP.variable}`}
+      className={inter.variable}
     >
       <head>
         <link rel="icon" href="/icon.png" type="image/png" />

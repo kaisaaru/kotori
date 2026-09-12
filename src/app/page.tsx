@@ -252,6 +252,10 @@ export default function HomePage() {
   const [progresses, setProgresses] = useState<
     Record<string, ReadingProgress | undefined>
   >({});
+  const [hasStoredBooks] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("kotoba-has-books") === "true";
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -415,10 +419,12 @@ export default function HomePage() {
   const t = TRANSLATIONS[language];
 
   const loadBooks = async () => {
-    setIsLoading(true);
     try {
       const allBooks = await getAllBooks();
       setBooks(allBooks);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("kotoba-has-books", allBooks.length > 0 ? "true" : "false");
+      }
       const progs: Record<string, ReadingProgress | undefined> = {};
       for (const book of allBooks) {
         progs[book.id] = await getProgress(book.id);
@@ -1612,8 +1618,8 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Loading State */}
-        {isLoading && (
+        {/* Loading State: only shown when library has stored books loading from database */}
+        {isLoading && hasStoredBooks && (
           <div
             style={{
               minHeight: "50vh",
@@ -1636,7 +1642,7 @@ export default function HomePage() {
         )}
 
         {/* Empty State (No Books Uploaded Yet) */}
-        {!isLoading && books.length === 0 && (
+        {(!isLoading || !hasStoredBooks) && books.length === 0 && (
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
