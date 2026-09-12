@@ -253,10 +253,7 @@ export default function HomePage() {
   const [progresses, setProgresses] = useState<
     Record<string, ReadingProgress | undefined>
   >({});
-  const [hasStoredBooks] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("kotoba-has-books") === "true";
-  });
+  const [hasStoredBooks, setHasStoredBooks] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -389,6 +386,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("kotoba-has-books") === "true") {
+      setHasStoredBooks(true);
+    }
     loadBooks();
     const savedTheme = localStorage.getItem("kotoba-theme") as "light" | "dark" | null;
     const t = savedTheme || getSystemTheme();
@@ -418,8 +418,10 @@ export default function HomePage() {
     try {
       const allBooks = await getAllBooks();
       setBooks(allBooks);
+      const hasBooks = allBooks.length > 0;
+      setHasStoredBooks(hasBooks);
       if (typeof window !== "undefined") {
-        localStorage.setItem("kotoba-has-books", allBooks.length > 0 ? "true" : "false");
+        localStorage.setItem("kotoba-has-books", hasBooks ? "true" : "false");
       }
       const progs: Record<string, ReadingProgress | undefined> = {};
       for (const book of allBooks) {
@@ -606,26 +608,26 @@ export default function HomePage() {
 
   const startBookTransition = (book: BookMeta) => {
     setPreviewPhase("tucking");
-    
+
     const progress = progresses[book.id];
     const chapterIndex = progress ? progress.chapterIndex : 0;
-    
+
     setTimeout(() => {
       setPreviewPhase("centering");
-      
+
       setTimeout(() => {
         setPreviewPhase("opening");
-        
+
         if (chapterIndex > 0) {
           // Immediately start page flipping alongside cover opening (0ms delay)
           setPreviewPhase("flipping");
-          
+
           const numFlips = Math.min(chapterIndex, 10);
           const flippingDuration = 400 + numFlips * 90;
-          
+
           setTimeout(() => {
             setPreviewPhase("zooming");
-            
+
             setTimeout(() => {
               router.push(`/reader/${book.id}`);
               setTimeout(() => {
@@ -638,7 +640,7 @@ export default function HomePage() {
           // No chapters read -> skip flipping sequence
           setTimeout(() => {
             setPreviewPhase("zooming");
-            
+
             setTimeout(() => {
               router.push(`/reader/${book.id}`);
               setTimeout(() => {
@@ -713,10 +715,10 @@ export default function HomePage() {
     return [...filteredBooks].sort((a, b) => {
       const { series: seriesA, volume: volA } = parseSeriesAndVolume(a.title);
       const { series: seriesB, volume: volB } = parseSeriesAndVolume(b.title);
-      
+
       const seriesCompare = seriesA.localeCompare(seriesB, "ja");
       if (seriesCompare !== 0) return seriesCompare;
-      
+
       if (volA === null && volB === null) return b.uploadedAt - a.uploadedAt;
       if (volA === null) return 1;
       if (volB === null) return -1;
@@ -1492,10 +1494,10 @@ export default function HomePage() {
                       toastItem.type === "success"
                         ? "#3b82f6"
                         : toastItem.type === "delete"
-                        ? "#ef4444"
-                        : toastItem.type === "reset"
-                        ? "#64748b"
-                        : "#facc15",
+                          ? "#ef4444"
+                          : toastItem.type === "reset"
+                            ? "#64748b"
+                            : "#facc15",
                   }}
                 />
               </div>
@@ -1650,62 +1652,62 @@ export default function HomePage() {
                 {/* Visual Series Shelves */}
                 {groupedShelves.shelves.map((shelf, shelfIdx) => (
                   <RevealSection key={shelf.seriesName} className="kb-reveal-left" delay={shelfIdx * 100}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingLeft: "4px" }}>
-                      <h3 style={{ fontSize: "18px", fontWeight: 800, color: "var(--kb-text)" }}>
-                        {shelf.seriesName}
-                      </h3>
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
-                        {shelf.books.length} {language === "ID" ? "Volume" : "Volumes"}
-                      </span>
-                    </div>
-                    
-                    {/* Visual Shelf Wrapper */}
-                    <div style={{ position: "relative", paddingBottom: "16px" }}>
-                      {/* Horizontal Scrolling Row */}
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "24px",
-                          overflowX: "auto",
-                          padding: "4px 4px 16px 4px",
-                          scrollBehavior: "smooth",
-                        }}
-                        className="kb-shelf-row"
-                      >
-                        {shelf.books.map((book) => (
-                          <div key={book.id} style={{ width: "190px", flexShrink: 0 }}>
-                            <BookCard
-                              book={book}
-                              progress={progresses[book.id]}
-                              onOpen={() => handleBookClick(book)}
-                              onDelete={() => setDeleteConfirm(book.id)}
-                              onResetProgress={() => setResetConfirm(book.id)}
-                              t={t}
-                            />
-                          </div>
-                        ))}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingLeft: "4px" }}>
+                        <h3 style={{ fontSize: "18px", fontWeight: 800, color: "var(--kb-text)" }}>
+                          {shelf.seriesName}
+                        </h3>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--kb-text-muted)" }}>
+                          {shelf.books.length} {language === "ID" ? "Volume" : "Volumes"}
+                        </span>
                       </div>
-                      
-                      {/* Visual 3D Wood/Glass Shelf Bar */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          bottom: "12px",
-                          left: 0,
-                          right: 0,
-                          height: "8px",
-                          borderRadius: "4px",
-                          background: theme === "dark" 
-                            ? "linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05))" 
-                            : "linear-gradient(to bottom, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03))",
-                          borderBottom: theme === "dark" ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(15, 23, 42, 0.06)",
-                          boxShadow: theme === "dark" ? "0 4px 10px rgba(0, 0, 0, 0.3)" : "0 4px 8px rgba(0, 0, 0, 0.08)",
-                          pointerEvents: "none",
-                        }}
-                      />
+
+                      {/* Visual Shelf Wrapper */}
+                      <div style={{ position: "relative", paddingBottom: "16px" }}>
+                        {/* Horizontal Scrolling Row */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "24px",
+                            overflowX: "auto",
+                            padding: "4px 4px 16px 4px",
+                            scrollBehavior: "smooth",
+                          }}
+                          className="kb-shelf-row"
+                        >
+                          {shelf.books.map((book) => (
+                            <div key={book.id} style={{ width: "190px", flexShrink: 0 }}>
+                              <BookCard
+                                book={book}
+                                progress={progresses[book.id]}
+                                onOpen={() => handleBookClick(book)}
+                                onDelete={() => setDeleteConfirm(book.id)}
+                                onResetProgress={() => setResetConfirm(book.id)}
+                                t={t}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Visual 3D Wood/Glass Shelf Bar */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: "12px",
+                            left: 0,
+                            right: 0,
+                            height: "8px",
+                            borderRadius: "4px",
+                            background: theme === "dark"
+                              ? "linear-gradient(to bottom, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05))"
+                              : "linear-gradient(to bottom, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.03))",
+                            borderBottom: theme === "dark" ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(15, 23, 42, 0.06)",
+                            boxShadow: theme === "dark" ? "0 4px 10px rgba(0, 0, 0, 0.3)" : "0 4px 8px rgba(0, 0, 0, 0.08)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
                   </RevealSection>
                 ))}
               </div>
@@ -1722,14 +1724,14 @@ export default function HomePage() {
               >
                 {sortedFilteredBooks.map((book, bookIdx) => (
                   <RevealSection key={book.id} className="kb-reveal-scale" delay={bookIdx * 60}>
-                  <BookCard
-                    book={book}
-                    progress={progresses[book.id]}
-                    onOpen={() => handleBookClick(book)}
-                    onDelete={() => setDeleteConfirm(book.id)}
-                    onResetProgress={() => setResetConfirm(book.id)}
-                    t={t}
-                  />
+                    <BookCard
+                      book={book}
+                      progress={progresses[book.id]}
+                      onOpen={() => handleBookClick(book)}
+                      onDelete={() => setDeleteConfirm(book.id)}
+                      onResetProgress={() => setResetConfirm(book.id)}
+                      t={t}
+                    />
                   </RevealSection>
                 ))}
               </div>
@@ -1756,252 +1758,181 @@ export default function HomePage() {
             </p>
           </div>
         )}
-              </main>
+      </main>
 
       {/* ===== Community & Creator Banner ===== */}
       <div style={{ width: "100%" }}>
-              <section
+        <section
+          style={{
+            maxWidth: "1320px",
+            margin: "0 auto 0",
+            padding: "0 32px 48px",
+            width: "100%",
+          }}
+        >
+          <div
+            style={{
+              borderRadius: "24px",
+              padding: "40px 32px",
+              background: "linear-gradient(135deg, var(--kb-surface) 0%, rgba(99, 102, 241, 0.03) 100%)",
+              border: "1px solid rgba(99, 102, 241, 0.12)",
+              textAlign: "center",
+              position: "relative",
+              overflow: "hidden",
+              boxShadow: "0 10px 30px -10px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5)",
+            }}
+          >
+            {/* Decorative background icon */}
+            <Sparkles
+              style={{
+                position: "absolute",
+                right: "-20px",
+                bottom: "-20px",
+                width: "180px",
+                height: "180px",
+                color: "var(--kb-primary)",
+                opacity: 0.03,
+                pointerEvents: "none",
+                transform: "rotate(-15deg)",
+              }}
+            />
+            <BookOpen
+              style={{
+                position: "absolute",
+                left: "-20px",
+                top: "-20px",
+                width: "140px",
+                height: "140px",
+                color: "var(--kb-primary)",
+                opacity: 0.02,
+                pointerEvents: "none",
+                transform: "rotate(12deg)",
+              }}
+            />
+
+            {/* Badge */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 14px",
+                borderRadius: "100px",
+                backgroundColor: "var(--kb-primary-light)",
+                color: "var(--kb-primary)",
+                fontSize: "12px",
+                fontWeight: 700,
+                marginBottom: "16px",
+              }}
+            >
+              <Sparkles style={{ width: "13px", height: "13px" }} />
+              <span>Kotori Community</span>
+            </div>
+
+            <h3
+              style={{
+                fontSize: "24px",
+                fontWeight: 800,
+                marginBottom: "12px",
+                letterSpacing: "-0.02em",
+                color: "var(--kb-text)",
+              }}
+            >
+              {t.communityTitle}
+            </h3>
+
+            <p
+              style={{
+                fontSize: "14px",
+                color: "var(--kb-text-secondary)",
+                maxWidth: "520px",
+                margin: "0 auto 24px",
+                lineHeight: 1.6,
+              }}
+            >
+              {t.communityDesc}
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "12px",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {/* Feedback button */}
+              <button
+                onClick={() => setShowFeedbackModal(true)}
                 style={{
-                  maxWidth: "1320px",
-                  margin: "0 auto 0",
-                  padding: "0 32px 48px",
-                  width: "100%",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 20px",
+                  borderRadius: "12px",
+                  backgroundColor: "var(--kb-primary)",
+                  color: "white",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(99, 102, 241, 0.3)",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(99, 102, 241, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 4px 14px rgba(99, 102, 241, 0.3)";
                 }}
               >
-                <div
-                  style={{
-                    borderRadius: "24px",
-                    padding: "40px 32px",
-                    background: "linear-gradient(135deg, var(--kb-surface) 0%, rgba(99, 102, 241, 0.03) 100%)",
-                    border: "1px solid rgba(99, 102, 241, 0.12)",
-                    textAlign: "center",
-                    position: "relative",
-                    overflow: "hidden",
-                    boxShadow: "0 10px 30px -10px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5)",
-                  }}
-                >
-                  {/* Decorative background icon */}
-                  <Sparkles 
-                    style={{ 
-                      position: "absolute",
-                      right: "-20px",
-                      bottom: "-20px",
-                      width: "180px",
-                      height: "180px",
-                      color: "var(--kb-primary)",
-                      opacity: 0.03,
-                      pointerEvents: "none",
-                      transform: "rotate(-15deg)",
-                    }} 
-                  />
-                  <BookOpen 
-                    style={{ 
-                      position: "absolute",
-                      left: "-20px",
-                      top: "-20px",
-                      width: "140px",
-                      height: "140px",
-                      color: "var(--kb-primary)",
-                      opacity: 0.02,
-                      pointerEvents: "none",
-                      transform: "rotate(12deg)",
-                    }} 
-                  />
-
-                  {/* Badge */}
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 14px",
-                      borderRadius: "100px",
-                      backgroundColor: "var(--kb-primary-light)",
-                      color: "var(--kb-primary)",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      marginBottom: "16px",
-                    }}
-                  >
-                    <Sparkles style={{ width: "13px", height: "13px" }} />
-                    <span>Kotori Community</span>
-                  </div>
-
-                  <h3
-                    style={{
-                      fontSize: "24px",
-                      fontWeight: 800,
-                      marginBottom: "12px",
-                      letterSpacing: "-0.02em",
-                      color: "var(--kb-text)",
-                    }}
-                  >
-                    {t.communityTitle}
-                  </h3>
-
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      color: "var(--kb-text-secondary)",
-                      maxWidth: "520px",
-                      margin: "0 auto 24px",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {t.communityDesc}
-                  </p>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "12px",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    {/* Feedback button */}
-                    <button
-                      onClick={() => setShowFeedbackModal(true)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "10px 20px",
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-primary)",
-                        color: "white",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        border: "none",
-                        cursor: "pointer",
-                        boxShadow: "0 4px 14px rgba(99, 102, 241, 0.3)",
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = "0 6px 20px rgba(99, 102, 241, 0.4)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "none";
-                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(99, 102, 241, 0.3)";
-                      }}
-                    >
-                      <MessageSquare style={{ width: "14px", height: "14px" }} />
-                      <span>{t.feedbackBtn}</span>
-                    </button>
-
-                    {/* Social Media Links */}
-                    <a
-                      href="https://instagram.com/kaisar_kh"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "10px 18px",
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-surface)",
-                        color: "var(--kb-text)",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        border: "1px solid var(--kb-border)",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "var(--kb-primary)";
-                        e.currentTarget.style.color = "var(--kb-primary)";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--kb-border)";
-                        e.currentTarget.style.color = "var(--kb-text)";
-                        e.currentTarget.style.transform = "none";
-                      }}
-                    >
-                      <svg style={{ width: "14px", height: "14px" }} fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                      </svg>
-                      Instagram
-                    </a>
-
-                    <a
-                      href="https://t.me/kaisar_kh"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "10px 18px",
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-surface)",
-                        color: "var(--kb-text)",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        border: "1px solid var(--kb-border)",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "var(--kb-primary)";
-                        e.currentTarget.style.color = "var(--kb-primary)";
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--kb-border)";
-                        e.currentTarget.style.color = "var(--kb-text)";
-                        e.currentTarget.style.transform = "none";
-                      }}
-                    >
-                      <svg style={{ width: "14px", height: "14px" }} fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.83.916z"/>
-                      </svg>
-                      Telegram
-                    </a>
-                  </div>
-                </div>
-              </section>
+                <MessageSquare style={{ width: "14px", height: "14px" }} />
+                <span>{t.feedbackBtn}</span>
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 
-              {/* Footer */}
-              <div style={{ width: "100%" }}>
-                <Footer language={language} />
-              </div>
+      {/* Footer */}
+      <div style={{ width: "100%" }}>
+        <Footer language={language} />
+      </div>
 
-              {/* Feedback Modal */}
-              <FeedbackModal
-                isOpen={showFeedbackModal}
-                onClose={() => setShowFeedbackModal(false)}
-                language={language}
-                onToast={showToast}
-              />
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        language={language}
+        onToast={showToast}
+      />
 
-              {/* Floating Dictionary Search Button - bottom-right, always reachable regardless of
+      {/* Floating Dictionary Search Button - bottom-right, always reachable regardless of
                   scroll position, replacing the old toolbar/mobile-menu entry points. */}
-              <DictionarySearchFab
-                onClick={() => setShowDictionarySearch(true)}
-                language={language}
-                bottom="24px"
-              />
+      <DictionarySearchFab
+        onClick={() => setShowDictionarySearch(true)}
+        language={language}
+        bottom="24px"
+      />
 
-              {/* Dictionary Search Modal */}
-              <DictionarySearchModal
-                isOpen={showDictionarySearch}
-                onClose={() => setShowDictionarySearch(false)}
-                language={language}
-              />
+      {/* Dictionary Search Modal */}
+      <DictionarySearchModal
+        isOpen={showDictionarySearch}
+        onClose={() => setShowDictionarySearch(false)}
+        language={language}
+      />
 
-              {/* Change Log Modal */}
-              <ChangeLogModal
-                isOpen={showChangeLog}
-                onClose={() => setShowChangeLog(false)}
-                language={language}
-              />
+      {/* Change Log Modal */}
+      <ChangeLogModal
+        isOpen={showChangeLog}
+        onClose={() => setShowChangeLog(false)}
+        language={language}
+      />
 
-              {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteConfirm && (() => {
         const book = books.find((b) => b.id === deleteConfirm);
         const displayTitle = book ? truncate(book.title, 45) : "";
@@ -2249,10 +2180,10 @@ export default function HomePage() {
         const progress = progresses[previewBook.id];
         const progressPercent = progress
           ? Math.round(
-              ((progress.chapterIndex + progress.scrollPosition) /
-                Math.max(previewBook.totalChapters, 1)) *
-                100
-            )
+            ((progress.chapterIndex + progress.scrollPosition) /
+              Math.max(previewBook.totalChapters, 1)) *
+            100
+          )
           : 0;
 
         const hasProgress = progressPercent > 0;
@@ -2265,12 +2196,12 @@ export default function HomePage() {
         // Dynamic book thickness scaled by total chapters (min 4px for short books, max 14px for thick books)
         const totalChapters = previewBook.totalChapters || 15;
         const maxThickness = Math.min(Math.max(Math.round(totalChapters * 0.35), 4), 14);
-        
+
         const currentChapterIndex = progress ? progress.chapterIndex : 0;
         const readRatio = totalChapters > 0 ? Math.min(currentChapterIndex / totalChapters, 1) : 0;
-        
+
         const isOpen = previewPhase === "opening" || previewPhase === "flipping" || previewPhase === "zooming";
-        
+
         // Calculate left & right stack depth dynamically
         const leftStackDepth = isOpen ? Math.round(maxThickness * readRatio) : 0;
         const rightStackDepth = isOpen ? Math.max(maxThickness - leftStackDepth, 1) : maxThickness;
@@ -2299,18 +2230,18 @@ export default function HomePage() {
           }
 
           const defaultTitle = `${language === "ID" ? "Bab" : "Chapter"} ${(ch.index ?? indexFallback) + 1}`;
-          
+
           let title = ch.title && !/^Chapter \d+$/i.test(ch.title) && !/^Bab \d+$/i.test(ch.title)
             ? ch.title.trim()
             : defaultTitle;
 
           const rawText = ch.htmlContent
             ? ch.htmlContent
-                .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-                .replace(/<[^>]+>/g, " ")
-                .replace(/\s+/g, " ")
-                .trim()
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
             : "";
 
           let heading: string | null = null;
@@ -2348,7 +2279,7 @@ export default function HomePage() {
                   imgMatch = [imgEl.outerHTML, src];
                 }
               }
-            } catch (e) {}
+            } catch (e) { }
           }
 
           const image = imgMatch ? imgMatch[1] : null;
@@ -2656,7 +2587,7 @@ export default function HomePage() {
                 {Array.from({ length: numFlips }).map((_, i) => {
                   const delay = i * 90;
                   const isFlipped = previewPhase === "zooming" || previewPhase === "flipping";
-                  
+
                   const pageChIndex = Math.max(0, targetChapterIndex - numFlips + i);
                   const pageMeta = getChapterMeta(previewChapters[pageChIndex], pageChIndex);
 
@@ -2681,7 +2612,7 @@ export default function HomePage() {
                         backfaceVisibility: "hidden",
                         WebkitBackfaceVisibility: "hidden",
                         zIndex: 3 + i,
-                        boxShadow: isFlipped 
+                        boxShadow: isFlipped
                           ? getPaperStackShadow(leftStackDepth, "left")
                           : "3px 3px 10px rgba(0,0,0,0.08)",
                         padding: "14px 12px",
@@ -2816,7 +2747,7 @@ export default function HomePage() {
                     position: "absolute",
                     inset: 0,
                     transformOrigin: "left center",
-                    transform: 
+                    transform:
                       previewPhase === "opening" || previewPhase === "zooming" || previewPhase === "flipping"
                         ? "rotateY(-178deg)"
                         : "rotateY(0deg)",
@@ -2951,10 +2882,10 @@ function BookCard({
 
   const progressPercent = progress
     ? Math.round(
-        ((progress.chapterIndex + progress.scrollPosition) /
-          Math.max(book.totalChapters, 1)) *
-          100
-      )
+      ((progress.chapterIndex + progress.scrollPosition) /
+        Math.max(book.totalChapters, 1)) *
+      100
+    )
     : 0;
 
   return (
