@@ -11,9 +11,9 @@ import {
   List,
   BookOpen,
   X,
-  Bookmark,
-  BookmarkCheck,
   Sparkles,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { DictionarySearchModal } from "@/components/DictionarySearchModal";
 import { DictionarySearchFab } from "@/components/DictionarySearchFab";
@@ -285,7 +285,6 @@ export default function ReaderPage() {
   // Viewport box of the reading area, used to clip the fixed-position highlight overlays so they
   // never paint over the header or toolbar. Refreshed whenever the overlays are.
   const [overlayClip, setOverlayClip] = useState({ top: 0, left: 0, width: 0, height: 0 });
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [showDictionarySearch, setShowDictionarySearch] = useState(false);
   // Mirrors the home page's language switcher (localStorage "kotoba-language") - read-only here,
   // no switcher in the reader itself.
@@ -349,18 +348,6 @@ export default function ReaderPage() {
     () => chapters.map((c) => getPlainTextLength(c.htmlContent)),
     [chapters]
   );
-
-  // Sync bookmark state when chapter changes
-  useEffect(() => {
-    if (!bookId) return;
-    getProgress(bookId).then((p) => {
-      if (p && p.chapterIndex === currentChapterIndex) {
-        setIsBookmarked(true);
-      } else {
-        setIsBookmarked(false);
-      }
-    });
-  }, [bookId, currentChapterIndex]);
 
   // Track the in-chapter scroll ratio for the progress badge, and save reading progress shortly
   // after scrolling settles - far more frequent/accurate than relying
@@ -647,7 +634,6 @@ export default function ReaderPage() {
             scrollPosition: getScrollPosition(),
             lastReadAt: Date.now(),
           });
-          setIsBookmarked(true);
         }
       }
     };
@@ -884,26 +870,6 @@ export default function ReaderPage() {
   useEffect(() => {
     if (isLoaded) saveSettings(settings);
   }, [settings, isLoaded]);
-
-  // Keyboard navigation
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (isSettingsOpen || isTocOpen) return;
-      switch (e.key) {
-        case "ArrowLeft":
-          settings.writingMode === "vertical" ? goNextChapter() : goPrevChapter();
-          break;
-        case "ArrowRight":
-          settings.writingMode === "vertical" ? goPrevChapter() : goNextChapter();
-          break;
-        case "Escape":
-          router.push("/");
-          break;
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [settings.writingMode, currentChapterIndex, chapters.length, isSettingsOpen, isTocOpen]);
 
   // Scroll reset helper: vertical Japanese text reads right-to-left!
   const resetScrollPosition = useCallback(() => {
@@ -1273,6 +1239,10 @@ export default function ReaderPage() {
   }, []);
 
   const goNextChapter = useCallback(() => {
+    if (settings.lockChapterNav) {
+      triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+      return;
+    }
     if (currentChapterIndex < chapters.length - 1 && !isTransitioningRef.current) {
       isTransitioningRef.current = true;
       setIsFading(true);
@@ -1290,9 +1260,13 @@ export default function ReaderPage() {
         isTransitioningRef.current = false;
       }, 350);
     }
-  }, [currentChapterIndex, chapters, setCurrentChapter, resetScrollPosition, triggerChapterNotice]);
+  }, [currentChapterIndex, chapters, setCurrentChapter, resetScrollPosition, triggerChapterNotice, settings.lockChapterNav, language]);
 
   const goPrevChapter = useCallback(() => {
+    if (settings.lockChapterNav) {
+      triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+      return;
+    }
     if (currentChapterIndex > 0 && !isTransitioningRef.current) {
       isTransitioningRef.current = true;
       setIsFading(true);
@@ -1310,7 +1284,33 @@ export default function ReaderPage() {
         isTransitioningRef.current = false;
       }, 350);
     }
-  }, [currentChapterIndex, chapters, setCurrentChapter, resetScrollPosition, triggerChapterNotice]);
+  }, [currentChapterIndex, chapters, setCurrentChapter, resetScrollPosition, triggerChapterNotice, settings.lockChapterNav, language]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isSettingsOpen || isTocOpen) return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        if (settings.lockChapterNav) {
+          triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+          return;
+        }
+      }
+      switch (e.key) {
+        case "ArrowLeft":
+          settings.writingMode === "vertical" ? goNextChapter() : goPrevChapter();
+          break;
+        case "ArrowRight":
+          settings.writingMode === "vertical" ? goPrevChapter() : goNextChapter();
+          break;
+        case "Escape":
+          router.push("/");
+          break;
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [settings.writingMode, settings.lockChapterNav, currentChapterIndex, chapters.length, isSettingsOpen, isTocOpen, language, triggerChapterNotice, goNextChapter, goPrevChapter, router]);
 
   // Mouse Wheel Horizontal Scroll Converter for Vertical Japanese Typesetting:
   // Converts physical desktop mouse vertical wheel (deltaY) into horizontal scrolling across pages.
@@ -1601,21 +1601,17 @@ export default function ReaderPage() {
 
         {/* Right: Controls */}
         <div className="kb-reader-right-section" style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, marginLeft: "12px" }}>
-          {/* Bookmark Button (Placed to the LEFT of Table of Contents button) */}
+          {/* Lock / Unlock Chapter Navigation */}
           <button
-            onClick={async (e) => {
+            onClick={(e) => {
               e.stopPropagation();
-              if (!book) return;
-              const currentPos = getScrollPosition();
-              await saveProgress({
-                bookId: book.id,
-                chapterIndex: currentChapterIndex,
-                scrollPosition: currentPos,
-                lastReadAt: Date.now(),
-              });
-              setIsBookmarked(true);
-              const title = chapters[currentChapterIndex]?.title || `Bab ${currentChapterIndex + 1}`;
-              triggerChapterNotice(`🔖 Bookmark tersimpan pada ${title}`);
+              const nextLocked = !(settings.lockChapterNav ?? false);
+              setSettings({ lockChapterNav: nextLocked });
+              triggerChapterNotice(
+                nextLocked
+                  ? (language === "ID" ? "Navigasi bab dikunci" : "Chapter navigation locked")
+                  : (language === "ID" ? "Navigasi bab dibuka" : "Chapter navigation unlocked")
+              );
             }}
             style={{
               width: "36px",
@@ -1624,19 +1620,27 @@ export default function ReaderPage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: isBookmarked ? "rgba(99,102,241,0.15)" : "var(--kb-bg-secondary)",
-              border: isBookmarked ? "1px solid var(--kb-primary)" : "1px solid var(--kb-border)",
-              color: isBookmarked ? "var(--kb-primary)" : "var(--kb-text)",
+              backgroundColor: settings.lockChapterNav
+                ? "rgba(234, 179, 8, 0.15)"
+                : "var(--kb-bg-secondary)",
+              border: settings.lockChapterNav
+                ? "1px solid #eab308"
+                : "1px solid var(--kb-border)",
+              color: settings.lockChapterNav ? "#eab308" : "var(--kb-text)",
               cursor: "pointer",
               flexShrink: 0,
               transition: "all 0.2s ease",
             }}
-            title={language === "ID" ? "Simpan Bookmark Halaman Ini" : "Save Bookmark on This Page"}
+            title={
+              settings.lockChapterNav
+                ? (language === "ID" ? "Buka Kunci Navigasi Bab" : "Unlock Chapter Navigation")
+                : (language === "ID" ? "Kunci Navigasi Bab (Cegah Ganti Bab Tidak Sengaja)" : "Lock Chapter Navigation (Prevent Accidental Jumps)")
+            }
           >
-            {isBookmarked ? (
-              <BookmarkCheck style={{ width: "16px", height: "16px", fill: "var(--kb-primary)" }} />
+            {settings.lockChapterNav ? (
+              <Lock style={{ width: "16px", height: "16px" }} />
             ) : (
-              <Bookmark style={{ width: "16px", height: "16px" }} />
+              <Unlock style={{ width: "16px", height: "16px" }} />
             )}
           </button>
 
@@ -1668,18 +1672,18 @@ export default function ReaderPage() {
               backgroundColor: !isBookJapanese
                 ? "var(--kb-bg-secondary)"
                 : (settings.enableDictionary ?? true)
-                ? "var(--kb-bg-secondary)"
-                : "rgba(239, 68, 68, 0.12)",
+                  ? "var(--kb-bg-secondary)"
+                  : "rgba(239, 68, 68, 0.12)",
               border: !isBookJapanese
                 ? "1px solid var(--kb-border)"
                 : (settings.enableDictionary ?? true)
-                ? "1px solid var(--kb-border)"
-                : "1px solid rgba(239, 68, 68, 0.4)",
+                  ? "1px solid var(--kb-border)"
+                  : "1px solid rgba(239, 68, 68, 0.4)",
               color: !isBookJapanese
                 ? "var(--kb-text-muted)"
                 : (settings.enableDictionary ?? true)
-                ? "var(--kb-primary)"
-                : "var(--kb-text-muted)",
+                  ? "var(--kb-primary)"
+                  : "var(--kb-text-muted)",
               cursor: !isBookJapanese ? "not-allowed" : "pointer",
               opacity: !isBookJapanese ? 0.45 : 1,
               flexShrink: 0,
@@ -1691,12 +1695,12 @@ export default function ReaderPage() {
                   ? "Kamus dinonaktifkan (Bukan novel Jepang)"
                   : "Dictionary disabled (Not a Japanese novel)")
                 : (settings.enableDictionary ?? true)
-                ? (language === "ID"
-                  ? "Kamus Bawaan: Aktif"
-                  : "Built-in Dictionary: On")
-                : (language === "ID"
-                  ? "Kamus Bawaan: Nonaktif"
-                  : "Built-in Dictionary: Off")
+                  ? (language === "ID"
+                    ? "Kamus Bawaan: Aktif"
+                    : "Built-in Dictionary: On")
+                  : (language === "ID"
+                    ? "Kamus Bawaan: Nonaktif"
+                    : "Built-in Dictionary: Off")
             }
           >
             <BookOpen style={{ width: "16px", height: "16px" }} />
@@ -1890,9 +1894,13 @@ export default function ReaderPage() {
         <button
           onClick={(e) => {
             e.stopPropagation();
+            if (settings.lockChapterNav) {
+              triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+              return;
+            }
             settings.writingMode === "vertical" ? goNextChapter() : goPrevChapter();
           }}
-          disabled={settings.writingMode === "vertical" ? currentChapterIndex === chapters.length - 1 : currentChapterIndex === 0}
+          disabled={settings.lockChapterNav || (settings.writingMode === "vertical" ? currentChapterIndex === chapters.length - 1 : currentChapterIndex === 0)}
           style={{
             position: "absolute",
             left: "16px",
@@ -1906,7 +1914,7 @@ export default function ReaderPage() {
             border: "1px solid var(--kb-border)",
             color: "var(--kb-text)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            display: "flex",
+            display: settings.lockChapterNav ? "none" : "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
@@ -1924,9 +1932,13 @@ export default function ReaderPage() {
         <button
           onClick={(e) => {
             e.stopPropagation();
+            if (settings.lockChapterNav) {
+              triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+              return;
+            }
             settings.writingMode === "vertical" ? goPrevChapter() : goNextChapter();
           }}
-          disabled={settings.writingMode === "vertical" ? currentChapterIndex === 0 : currentChapterIndex === chapters.length - 1}
+          disabled={settings.lockChapterNav || (settings.writingMode === "vertical" ? currentChapterIndex === 0 : currentChapterIndex === chapters.length - 1)}
           style={{
             position: "absolute",
             right: "16px",
@@ -1940,7 +1952,7 @@ export default function ReaderPage() {
             border: "1px solid var(--kb-border)",
             color: "var(--kb-text)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            display: "flex",
+            display: settings.lockChapterNav ? "none" : "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
@@ -2124,9 +2136,17 @@ export default function ReaderPage() {
         }}
       >
         <button
-          onClick={(e) => { e.stopPropagation(); goPrevChapter(); }}
-          disabled={currentChapterIndex === 0}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (settings.lockChapterNav) {
+              triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+              return;
+            }
+            goPrevChapter();
+          }}
+          disabled={currentChapterIndex === 0 || Boolean(settings.lockChapterNav)}
           aria-label={language === "ID" ? "Bab Sebelumnya" : "Previous Chapter"}
+          title={settings.lockChapterNav ? (language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked") : undefined}
           style={{
             width: "36px",
             height: "36px",
@@ -2137,9 +2157,9 @@ export default function ReaderPage() {
             backgroundColor: "var(--kb-bg-secondary)",
             border: "1px solid var(--kb-border)",
             color: "var(--kb-text)",
-            cursor: "pointer",
+            cursor: (currentChapterIndex === 0 || settings.lockChapterNav) ? "not-allowed" : "pointer",
             flexShrink: 0,
-            opacity: currentChapterIndex === 0 ? 0.3 : 1,
+            opacity: (currentChapterIndex === 0 || settings.lockChapterNav) ? 0.3 : 1,
           }}
         >
           <ChevronLeft style={{ width: "16px", height: "16px" }} />
@@ -2163,9 +2183,17 @@ export default function ReaderPage() {
         </div>
 
         <button
-          onClick={(e) => { e.stopPropagation(); goNextChapter(); }}
-          disabled={currentChapterIndex === chapters.length - 1}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (settings.lockChapterNav) {
+              triggerChapterNotice(language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked");
+              return;
+            }
+            goNextChapter();
+          }}
+          disabled={currentChapterIndex === chapters.length - 1 || Boolean(settings.lockChapterNav)}
           aria-label={language === "ID" ? "Bab Berikutnya" : "Next Chapter"}
+          title={settings.lockChapterNav ? (language === "ID" ? "Navigasi bab terkunci" : "Chapter navigation locked") : undefined}
           style={{
             width: "36px",
             height: "36px",
@@ -2176,9 +2204,9 @@ export default function ReaderPage() {
             backgroundColor: "var(--kb-bg-secondary)",
             border: "1px solid var(--kb-border)",
             color: "var(--kb-text)",
-            cursor: "pointer",
+            cursor: (currentChapterIndex === chapters.length - 1 || settings.lockChapterNav) ? "not-allowed" : "pointer",
             flexShrink: 0,
-            opacity: currentChapterIndex === chapters.length - 1 ? 0.3 : 1,
+            opacity: (currentChapterIndex === chapters.length - 1 || settings.lockChapterNav) ? 0.3 : 1,
           }}
         >
           <ChevronRight style={{ width: "16px", height: "16px" }} />
@@ -2294,7 +2322,13 @@ export default function ReaderPage() {
             animation: "fadeIn 0.2s ease-out",
           }}
         >
-          <BookOpen style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
+          {chapterNotice.toLowerCase().includes("dibuka") || chapterNotice.toLowerCase().includes("unlocked") ? (
+            <Unlock style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
+          ) : chapterNotice.toLowerCase().includes("kunci") || chapterNotice.toLowerCase().includes("lock") ? (
+            <Lock style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
+          ) : (
+            <BookOpen style={{ width: "16px", height: "16px", color: "var(--kb-primary)" }} />
+          )}
           <span>{chapterNotice}</span>
         </div>
       )}

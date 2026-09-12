@@ -482,6 +482,70 @@ export default function ReaderSettingsPanel({
             </div>
           </SettingSection>
 
+          {/* Lock Chapter Navigation */}
+          <SettingSection label={language === "ID" ? "Navigasi Bab" : "Chapter Navigation"}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                backgroundColor: "var(--kb-bg-secondary)",
+                border: "1px solid var(--kb-border-subtle)",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ flex: 1, paddingRight: "12px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--kb-text)" }}>
+                  {language === "ID" ? "Kunci Navigasi Bab" : "Lock Chapter Navigation"}
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--kb-text-muted)", marginTop: "2px", lineHeight: 1.4 }}>
+                  {language === "ID"
+                    ? "Sembunyikan tombol bab samping agar tidak tersentuh tanpa sengaja di layar sentuh."
+                    : "Hide floating side buttons and lock chapter turns to prevent accidental taps on touchscreens."}
+                </div>
+              </div>
+
+              {/* Toggle Switch Button */}
+              <button
+                onClick={() => {
+                  onSettingsChange({ lockChapterNav: !settings.lockChapterNav });
+                }}
+                title={
+                  settings.lockChapterNav
+                    ? (language === "ID" ? "Buka Kunci Navigasi" : "Unlock Navigation")
+                    : (language === "ID" ? "Kunci Navigasi" : "Lock Navigation")
+                }
+                style={{
+                  width: "48px",
+                  height: "26px",
+                  borderRadius: "13px",
+                  backgroundColor: settings.lockChapterNav ? "var(--kb-primary)" : "var(--kb-border)",
+                  position: "relative",
+                  cursor: "pointer",
+                  border: "none",
+                  transition: "all 0.2s ease",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    backgroundColor: "#ffffff",
+                    position: "absolute",
+                    top: "3px",
+                    left: settings.lockChapterNav ? "25px" : "3px",
+                    transition: "left 0.2s ease",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </button>
+            </div>
+          </SettingSection>
+
           {/* Toggle Dictionary On/Off */}
           <SettingSection label={language === "ID" ? "Fitur Kamus" : "Dictionary Popup"}>
             <div
