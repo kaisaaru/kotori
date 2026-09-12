@@ -11,6 +11,26 @@ export interface ChangelogEntry {
 // CURRENT_VERSION below always follows automatically.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.4.2",
+    date: "2026-09-13",
+    changes: {
+      id: [
+        "- Fitur Kunci Navigasi Bab: tombol di header reader & opsi pengaturan untuk mencegah perpindahan bab tidak sengaja saat membaca di layar sentuh mobile.",
+        "- Tombol navigasi bab samping otomatis disembunyikan dan tombol navigasi bilah bawah dinonaktifkan saat mode kunci aktif.",
+        "- Menghapus tombol manual bookmark dari header karena progres bacaan tersimpan secara otomatis dan instan.",
+        "- Posisi notifikasi toast dipindahkan ke pojok kanan atas dengan fitur jeda timer saat kursor diarahkan ke atasnya (pause on hover).",
+        "- Perbaikan bilah pencarian mobile agar responsif dan memenuhi lebar layar.",
+      ],
+      en: [
+        "- Chapter Navigation Lock: quick header button & settings toggle to prevent accidental chapter turns while reading on mobile touchscreens.",
+        "- Floating side chevron buttons are automatically hidden and bottom bar buttons disabled when navigation is locked.",
+        "- Removed redundant manual bookmark button from header in favor of real-time automatic progress saving.",
+        "- Moved toast notifications to the top-right corner with pause-on-hover timer interaction.",
+        "- Fixed mobile search bar responsiveness to comfortably span 100% width on phone screens.",
+      ],
+    },
+  },
+  {
     version: "0.4.1",
     date: "2026-09-07",
     changes: {
