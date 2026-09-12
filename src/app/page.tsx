@@ -23,9 +23,6 @@ import {
   RotateCcw,
   LayoutGrid,
   Sparkles,
-  Heart,
-  ShieldAlert,
-  Send,
   MessageSquare,
   History,
 } from "lucide-react";
@@ -55,6 +52,10 @@ const DictionarySearchModal = dynamic(
 );
 const ChangeLogModal = dynamic(
   () => import("@/components/ChangeLogModal").then((m) => m.ChangeLogModal),
+  { ssr: false }
+);
+const FeedbackModal = dynamic(
+  () => import("@/components/FeedbackModal").then((m) => m.FeedbackModal),
   { ssr: false }
 );
 
@@ -267,21 +268,16 @@ export default function HomePage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMenuAnimating, setIsMenuAnimating] = useState(false);
-  const [isIntroAnimating, setIsIntroAnimating] = useState(true);
   const [previewBook, setPreviewBook] = useState<BookMeta | null>(null);
   const [previewChapter, setPreviewChapter] = useState<Chapter | null>(null);
   const [previewChapters, setPreviewChapters] = useState<Chapter[]>([]);
   const [previewPhase, setPreviewPhase] = useState<"none" | "idle" | "tucked" | "tucking" | "centering" | "opening" | "flipping" | "zooming">("none");
   const [isLandscapeImg, setIsLandscapeImg] = useState(false);
 
-  // Feedback modal state
+  // Modal states
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showDictionarySearch, setShowDictionarySearch] = useState(false);
   const [showChangeLog, setShowChangeLog] = useState(false);
-  const [feedbackCategory, setFeedbackCategory] = useState<"idea" | "bug" | "love">("idea");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackContact, setFeedbackContact] = useState("");
-  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   useEffect(() => {
     setIsLandscapeImg(false);
@@ -707,38 +703,6 @@ export default function HomePage() {
     }
   };
 
-  const handleSendFeedback = async () => {
-    if (!feedbackMessage.trim()) return;
-    setIsSendingFeedback(true);
-    try {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: feedbackCategory,
-          message: feedbackMessage,
-          contact: feedbackContact,
-          language,
-        }),
-      });
-
-      if (res.ok) {
-        showToast(t.feedbackSuccess, "success");
-        setFeedbackMessage("");
-        setFeedbackContact("");
-        setShowFeedbackModal(false);
-      } else {
-        const data = await res.json();
-        showToast(data.error || "Gagal mengirim feedback", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Terjadi kesalahan sistem saat mengirim feedback", "error");
-    } finally {
-      setIsSendingFeedback(false);
-    }
-  };
-
   const filteredBooks = books.filter(
     (b) =>
       b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -803,85 +767,6 @@ export default function HomePage() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* ===== Loading / Intro Spinner ===== */}
-      {isLoading && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "var(--kb-bg)",
-            transition: "opacity 0.5s ease, visibility 0.5s ease",
-            opacity: isIntroAnimating ? 1 : 0,
-            visibility: isIntroAnimating ? "visible" : "hidden",
-          }}
-          onAnimationEnd={() => {
-            // After intro animation completes, fade out loader
-            setIsIntroAnimating(false);
-            setTimeout(() => {
-              // Keep loader visible but hidden until isLoading becomes false
-            }, 500);
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: "120px",
-              height: "120px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {/* Outer rotating ring */}
-            <div
-              style={{
-                position: "absolute",
-                width: "100%",
-                height: "100%",
-                borderRadius: "50%",
-                border: "4px solid rgba(99,102,241,0.2)",
-                borderTopColor: "var(--kb-primary)",
-                animation: "spin 1.5s linear infinite",
-              }}
-            />
-            {/* Inner icon */}
-            <Image
-              src="/icon.png"
-              alt="Loading"
-              width={60}
-              height={60}
-              preload
-              fetchPriority="high"
-              style={{
-                objectFit: "contain",
-                animation: "pulse 2s ease-in-out infinite",
-                position: "relative",
-                zIndex: 2,
-              }}
-            />
-          </div>
-          
-          {/* Loading text */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "-40px",
-              color: "var(--kb-text-secondary)",
-              fontSize: "14px",
-              fontWeight: 500,
-              animation: "fadeIn 0.5s ease 0.3s forwards",
-              opacity: 0,
-            }}
-          >
-            {language === "ID" ? "Memuat..." : "Loading..."}
-          </div>
-        </div>
-      )}
-
       {/* ===== Header ===== */}
       <header
         style={{
@@ -1874,7 +1759,7 @@ export default function HomePage() {
               </main>
 
       {/* ===== Community & Creator Banner ===== */}
-      <RevealSection className="kb-reveal-up" style={{ width: "100%" }}>
+      <div style={{ width: "100%" }}>
               <section
                 style={{
                   maxWidth: "1320px",
@@ -1898,329 +1783,201 @@ export default function HomePage() {
                   {/* Decorative background icon */}
                   <Sparkles 
                     style={{ 
-                      position: "absolute", 
-                      right: "-20px", 
-                      top: "-20px", 
-                      width: "120px", 
-                      height: "120px", 
-                      color: "var(--kb-primary)", 
+                      position: "absolute",
+                      right: "-20px",
+                      bottom: "-20px",
+                      width: "180px",
+                      height: "180px",
+                      color: "var(--kb-primary)",
                       opacity: 0.03,
-                      pointerEvents: "none"
+                      pointerEvents: "none",
+                      transform: "rotate(-15deg)",
                     }} 
                   />
-                  <Sparkles 
+                  <BookOpen 
                     style={{ 
-                      position: "absolute", 
-                      left: "-20px", 
-                      bottom: "-20px", 
-                      width: "100px", 
-                      height: "100px", 
-                      color: "var(--kb-primary)", 
+                      position: "absolute",
+                      left: "-20px",
+                      top: "-20px",
+                      width: "140px",
+                      height: "140px",
+                      color: "var(--kb-primary)",
                       opacity: 0.02,
-                      pointerEvents: "none"
+                      pointerEvents: "none",
+                      transform: "rotate(12deg)",
                     }} 
                   />
 
-                  <h3 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "10px", color: "var(--kb-text)", letterSpacing: "-0.02em" }}>
+                  {/* Badge */}
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      borderRadius: "100px",
+                      backgroundColor: "var(--kb-primary-light)",
+                      color: "var(--kb-primary)",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <Sparkles style={{ width: "13px", height: "13px" }} />
+                    <span>Kotori Community</span>
+                  </div>
+
+                  <h3
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      marginBottom: "12px",
+                      letterSpacing: "-0.02em",
+                      color: "var(--kb-text)",
+                    }}
+                  >
                     {t.communityTitle}
                   </h3>
-                  <p style={{ fontSize: "13.5px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "28px", maxWidth: "560px", margin: "0 auto 28px" }}>
+
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      color: "var(--kb-text-secondary)",
+                      maxWidth: "520px",
+                      margin: "0 auto 24px",
+                      lineHeight: 1.6,
+                    }}
+                  >
                     {t.communityDesc}
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "14px", flexWrap: "wrap", position: "relative", zIndex: 1 }}>
-                    {/* Feedback Button */}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "12px",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    {/* Feedback button */}
                     <button
                       onClick={() => setShowFeedbackModal(true)}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "12px 24px",
-                        fontSize: "13.5px",
-                        fontWeight: 750,
-                        borderRadius: "14px",
+                        padding: "10px 20px",
+                        borderRadius: "12px",
                         backgroundColor: "var(--kb-primary)",
-                        color: "#ffffff",
+                        color: "white",
+                        fontSize: "13px",
+                        fontWeight: 700,
                         border: "none",
                         cursor: "pointer",
-                        boxShadow: "0 6px 20px -4px rgba(99,102,241,0.4)",
-                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                        boxShadow: "0 4px 14px rgba(99, 102, 241, 0.3)",
+                        transition: "all 0.2s ease",
                       }}
-                      onMouseEnter={(e) => { 
-                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
-                        e.currentTarget.style.boxShadow = "0 10px 25px -4px rgba(99,102,241,0.5)"; 
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 6px 20px rgba(99, 102, 241, 0.4)";
                       }}
-                      onMouseLeave={(e) => { 
-                        e.currentTarget.style.transform = "none"; 
-                        e.currentTarget.style.boxShadow = "0 6px 20px -4px rgba(99,102,241,0.4)"; 
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "none";
+                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(99, 102, 241, 0.3)";
                       }}
                     >
-                      <MessageSquare style={{ width: "16px", height: "16px" }} />
-                      {t.feedbackBtn}
+                      <MessageSquare style={{ width: "14px", height: "14px" }} />
+                      <span>{t.feedbackBtn}</span>
                     </button>
 
-                    {/* Social Media Links (Temporarily Commented Out)
+                    {/* Social Media Links */}
                     <a
-                      href="https://instagram.com/ka1sai"
+                      href="https://instagram.com/kaisar_kh"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "12px 24px",
-                        fontSize: "13.5px",
-                        fontWeight: 750,
-                        borderRadius: "14px",
-                        backgroundColor: "var(--kb-bg-secondary)",
+                        padding: "10px 18px",
+                        borderRadius: "12px",
+                        backgroundColor: "var(--kb-surface)",
                         color: "var(--kb-text)",
+                        fontSize: "13px",
+                        fontWeight: 600,
                         border: "1px solid var(--kb-border)",
                         textDecoration: "none",
-                        cursor: "pointer",
-                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                        transition: "all 0.2s ease",
                       }}
-                      onMouseEnter={(e) => { 
-                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
-                        e.currentTarget.style.borderColor = "#E4405F"; 
-                        e.currentTarget.style.color = "#E4405F"; 
-                        e.currentTarget.style.backgroundColor = "rgba(228, 64, 95, 0.04)";
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "var(--kb-primary)";
+                        e.currentTarget.style.color = "var(--kb-primary)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
                       }}
-                      onMouseLeave={(e) => { 
-                        e.currentTarget.style.transform = "none"; 
-                        e.currentTarget.style.borderColor = "var(--kb-border)"; 
-                        e.currentTarget.style.color = "var(--kb-text)"; 
-                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--kb-border)";
+                        e.currentTarget.style.color = "var(--kb-text)";
+                        e.currentTarget.style.transform = "none";
                       }}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                      <svg style={{ width: "14px", height: "14px" }} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                      </svg>
                       Instagram
                     </a>
 
                     <a
-                      href="https://tiktok.com/@ka1sai"
+                      href="https://t.me/kaisar_kh"
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        padding: "12px 24px",
-                        fontSize: "13.5px",
-                        fontWeight: 750,
-                        borderRadius: "14px",
-                        backgroundColor: "var(--kb-bg-secondary)",
+                        padding: "10px 18px",
+                        borderRadius: "12px",
+                        backgroundColor: "var(--kb-surface)",
                         color: "var(--kb-text)",
+                        fontSize: "13px",
+                        fontWeight: 600,
                         border: "1px solid var(--kb-border)",
                         textDecoration: "none",
-                        cursor: "pointer",
-                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
-                      }}
-                      onMouseEnter={(e) => { 
-                        e.currentTarget.style.transform = "translateY(-3px) scale(1.03)"; 
-                        e.currentTarget.style.borderColor = "var(--kb-text)"; 
-                        e.currentTarget.style.backgroundColor = "var(--kb-border)";
-                      }}
-                      onMouseLeave={(e) => { 
-                        e.currentTarget.style.transform = "none"; 
-                        e.currentTarget.style.borderColor = "var(--kb-border)"; 
-                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.7a8.16 8.16 0 0 0 4.76 1.51v-3.45c0-.01-1-0.07-1-0.07z"/></svg>
-                      TikTok
-                    </a>
-                    */}
-                  </div>
-                </div>
-              </section>
-      </RevealSection>
-
-              {/* Footer */}
-              <RevealSection className="kb-reveal-up" delay={150} style={{ width: "100%" }}>
-                <Footer language={language} />
-              </RevealSection>
-
-              {/* ===== Feedback Modal ===== */}
-              <div
-                className={`kb-feedback-overlay ${showFeedbackModal ? "kb-modal-active" : ""}`}
-                onClick={() => setShowFeedbackModal(false)}
-              >
-                <div
-                  className="kb-feedback-content"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Close button */}
-                  <button
-                    onClick={() => setShowFeedbackModal(false)}
-                    aria-label={language === "ID" ? "Tutup" : "Close"}
-                    style={{
-                      position: "absolute",
-                      top: "18px",
-                      right: "18px",
-                      width: "32px",
-                        height: "32px",
-                        borderRadius: "10px",
-                        border: "none",
-                        backgroundColor: "var(--kb-bg-secondary)",
-                        color: "var(--kb-text-secondary)",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
                         transition: "all 0.2s ease",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "var(--kb-border)";
+                        e.currentTarget.style.borderColor = "var(--kb-primary)";
+                        e.currentTarget.style.color = "var(--kb-primary)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--kb-border)";
                         e.currentTarget.style.color = "var(--kb-text)";
-                        e.currentTarget.style.transform = "rotate(90deg)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "var(--kb-bg-secondary)";
-                        e.currentTarget.style.color = "var(--kb-text-secondary)";
                         e.currentTarget.style.transform = "none";
                       }}
                     >
-                      <X style={{ width: "16px", height: "16px" }} />
-                    </button>
-
-                    {/* Title */}
-                    <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "8px", color: "var(--kb-text)", paddingRight: "40px", letterSpacing: "-0.02em" }}>
-                      {t.feedbackTitle}
-                    </h2>
-                    <p style={{ fontSize: "13px", color: "var(--kb-text-secondary)", lineHeight: 1.6, marginBottom: "24px" }}>
-                      {t.feedbackDesc}
-                    </p>
-
-                    {/* Category selector */}
-                    <div 
-                      style={{ 
-                        display: "flex", 
-                        padding: "4px",
-                        backgroundColor: "var(--kb-bg-secondary)",
-                        borderRadius: "14px",
-                        border: "1px solid var(--kb-border)",
-                        gap: "2px", 
-                        marginBottom: "20px" 
-                      }}
-                    >
-                      {(["idea", "bug", "love"] as const).map((cat) => {
-                        const label = cat === "bug" ? t.catBug : cat === "idea" ? t.catIdea : t.catLove;
-                        const isActive = feedbackCategory === cat;
-                        
-                        // Icon selection based on category
-                        let CategoryIcon = Sparkles;
-                        if (cat === "bug") CategoryIcon = ShieldAlert;
-                        if (cat === "love") CategoryIcon = Heart;
-
-                        return (
-                          <button
-                            key={cat}
-                            onClick={() => setFeedbackCategory(cat)}
-                            className="kb-feedback-category-btn"
-                            style={{
-                              flex: 1,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: "6px",
-                              padding: "8px 12px",
-                              fontSize: "12px",
-                              fontWeight: 750,
-                              borderRadius: "10px",
-                              border: "none",
-                              backgroundColor: isActive ? "var(--kb-surface)" : "transparent",
-                              color: isActive ? "var(--kb-primary)" : "var(--kb-text-secondary)",
-                              boxShadow: isActive ? "0 2px 8px rgba(99,102,241,0.08), 0 1px 2px rgba(0,0,0,0.02)" : "none",
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                          >
-                            <CategoryIcon style={{ width: "13px", height: "13px", color: isActive ? "var(--kb-primary)" : "inherit" }} />
-                            <span>{label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Message textarea */}
-                    <textarea
-                      value={feedbackMessage}
-                      onChange={(e) => setFeedbackMessage(e.target.value)}
-                      placeholder={t.msgPlaceholder}
-                      className="kb-premium-input"
-                      style={{
-                        width: "100%",
-                        minHeight: "130px",
-                        padding: "14px 16px",
-                        fontSize: "13.5px",
-                        lineHeight: 1.6,
-                        borderRadius: "14px",
-                        backgroundColor: "var(--kb-bg)",
-                        color: "var(--kb-text)",
-                        outline: "none",
-                        resize: "none",
-                        fontFamily: "inherit",
-                        marginBottom: "14px",
-                      }}
-                    />
-
-                    {/* Contact input */}
-                    <input
-                      type="text"
-                      value={feedbackContact}
-                      onChange={(e) => setFeedbackContact(e.target.value)}
-                      placeholder={t.contactPlaceholder}
-                      className="kb-premium-input"
-                      style={{
-                        width: "100%",
-                        padding: "12px 16px",
-                        fontSize: "13px",
-                        borderRadius: "12px",
-                        backgroundColor: "var(--kb-bg)",
-                        color: "var(--kb-text)",
-                        outline: "none",
-                        marginBottom: "24px",
-                        fontFamily: "inherit",
-                      }}
-                    />
-
-                    {/* Send button */}
-                    <button
-                      onClick={handleSendFeedback}
-                      disabled={isSendingFeedback || !feedbackMessage.trim()}
-                      style={{
-                        width: "100%",
-                        padding: "14px",
-                        fontSize: "14px",
-                        fontWeight: 750,
-                        borderRadius: "14px",
-                        border: "none",
-                        backgroundColor: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-bg-secondary)" : "var(--kb-primary)",
-                        color: isSendingFeedback || !feedbackMessage.trim() ? "var(--kb-text-muted)" : "#ffffff",
-                        cursor: isSendingFeedback || !feedbackMessage.trim() ? "not-allowed" : "pointer",
-                        boxShadow: isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.3)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                        transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSendingFeedback && feedbackMessage.trim()) {
-                          e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "none";
-                        e.currentTarget.style.boxShadow = isSendingFeedback || !feedbackMessage.trim() ? "none" : "0 4px 16px rgba(99,102,241,0.3)";
-                      }}
-                    >
-                      <Send style={{ width: "14px", height: "14px" }} />
-                      <span>{isSendingFeedback ? t.sendingBtn : t.sendBtn}</span>
-                    </button>
+                      <svg style={{ width: "14px", height: "14px" }} fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.83.916z"/>
+                      </svg>
+                      Telegram
+                    </a>
                   </div>
                 </div>
+              </section>
+      </div>
+
+              {/* Footer */}
+              <div style={{ width: "100%" }}>
+                <Footer language={language} />
+              </div>
+
+              {/* Feedback Modal */}
+              <FeedbackModal
+                isOpen={showFeedbackModal}
+                onClose={() => setShowFeedbackModal(false)}
+                language={language}
+                onToast={showToast}
+              />
 
               {/* Floating Dictionary Search Button - bottom-right, always reachable regardless of
                   scroll position, replacing the old toolbar/mobile-menu entry points. */}
