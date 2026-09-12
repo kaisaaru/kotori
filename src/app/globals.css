@@ -98,7 +98,7 @@ html {
 }
 
 body {
-  font-family: var(--font-inter), var(--font-noto-sans-jp), system-ui, sans-serif;
+  font-family: var(--font-inter), var(--font-noto-sans-jp, system-ui), -apple-system, sans-serif;
   background-color: var(--kb-bg);
   color: var(--kb-text);
   transition: background-color 0.2s ease, color 0.2s ease;
