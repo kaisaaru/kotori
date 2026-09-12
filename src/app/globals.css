@@ -242,13 +242,13 @@ body {
 }
 
 @keyframes toastIn {
-  from { opacity: 0; transform: translate(30px, 0); }
-  to { opacity: 1; transform: translate(0, 0); }
+  from { opacity: 0; transform: translateX(30px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes toastOut {
-  from { opacity: 1; transform: translate(0, 0); }
-  to { opacity: 0; transform: translate(30px, 0); }
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to { opacity: 0; transform: translateX(30px) scale(0.96); }
 }
 
 @keyframes toastProgress {
@@ -279,8 +279,13 @@ body {
   white-space: nowrap;
 }
 
+.kb-search-container {
+  flex: 0 1 320px;
+  min-width: 160px;
+}
+
 /* Responsive adjustments for desktop/laptop/tablet screens */
-@media (max-width: 1180px) {
+@media (min-width: 769px) and (max-width: 1180px) {
   .kb-header-inner {
     padding: 0 20px !important;
     gap: 12px !important;
@@ -296,7 +301,7 @@ body {
   }
 }
 
-@media (max-width: 1040px) {
+@media (min-width: 769px) and (max-width: 1040px) {
   .kb-logo-subtitle {
     display: none !important;
   }
@@ -317,7 +322,7 @@ body {
   }
 }
 
-@media (max-width: 900px) {
+@media (min-width: 769px) and (max-width: 900px) {
   .kb-desktop-controls {
     gap: 6px !important;
   }
@@ -366,11 +371,15 @@ body {
   .kb-search-container {
     order: 3;
     width: 100% !important;
-    margin-top: 2px;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    margin-top: 4px !important;
   }
 
   .kb-search-input {
     width: 100% !important;
+    min-width: 0 !important;
   }
 
   .kb-main-container {
@@ -479,31 +488,34 @@ body {
 /* ===== Toast Notification ===== */
 .kb-toast-stack {
   position: fixed;
-  top: 84px;
+  top: 16px;
   right: 24px;
-  z-index: 110;
+  z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 8px;
   pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - 32px);
 }
 
 .kb-toast {
   position: relative;
-  padding: 14px 18px 16px 18px;
-  border-radius: 12px;
-  background-color: var(--kb-toolbar-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  padding: 12px 18px 14px 18px;
+  border-radius: 14px;
+  background-color: var(--kb-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: var(--kb-text);
   border: 1px solid var(--kb-border);
-  box-shadow: var(--kb-card-shadow-hover);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
   font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: 380px;
+  max-width: 440px;
   width: max-content;
   overflow: hidden;
   pointer-events: auto;
@@ -538,16 +550,23 @@ body {
   animation: toastProgress 4s linear forwards;
 }
 
+.kb-toast:hover .kb-toast-progress {
+  animation-play-state: paused;
+}
+
 @media (max-width: 640px) {
   .kb-toast-stack {
-    right: 16px;
-    left: 16px;
-    top: 80px;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    align-items: stretch;
   }
 
   .kb-toast {
     max-width: 100%;
-    width: auto;
+    width: 100%;
     margin-left: 0;
   }
 }
