@@ -328,33 +328,62 @@ export default function HomePage() {
     animatingOut: boolean;
   }>>([]);
   const toastIdRef = useRef(0);
-  const toastTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const toastTimersRef = useRef<Map<number, {
+    timer: ReturnType<typeof setTimeout> | null;
+    startTime: number;
+    remainingTime: number;
+  }>>(new Map());
 
   const dismissToast = useCallback((id: number) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
+    const info = toastTimersRef.current.get(id);
+    if (info?.timer) {
+      clearTimeout(info.timer);
     }
+    toastTimersRef.current.delete(id);
     setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, animatingOut: true } : t)));
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 300);
   }, []);
 
+  const pauseToastTimer = useCallback((id: number) => {
+    const info = toastTimersRef.current.get(id);
+    if (info && info.timer) {
+      clearTimeout(info.timer);
+      info.timer = null;
+      const elapsed = Date.now() - info.startTime;
+      info.remainingTime = Math.max(800, info.remainingTime - elapsed);
+    }
+  }, []);
+
+  const resumeToastTimer = useCallback((id: number) => {
+    const info = toastTimersRef.current.get(id);
+    if (info && !info.timer && info.remainingTime > 0) {
+      info.startTime = Date.now();
+      info.timer = setTimeout(() => {
+        dismissToast(id);
+      }, info.remainingTime);
+    }
+  }, [dismissToast]);
+
   const showToast = useCallback((message: string, type: "success" | "error" | "delete" | "reset" = "success") => {
     const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, message, type, animatingOut: false }]);
 
+    const remainingTime = 4000;
+    const startTime = Date.now();
     const timer = setTimeout(() => {
       dismissToast(id);
-    }, 4000);
-    toastTimersRef.current.set(id, timer);
+    }, remainingTime);
+
+    toastTimersRef.current.set(id, { timer, startTime, remainingTime });
   }, [dismissToast]);
 
   useEffect(() => {
     return () => {
-      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+      toastTimersRef.current.forEach((info) => {
+        if (info.timer) clearTimeout(info.timer);
+      });
       toastTimersRef.current.clear();
     };
   }, []);
@@ -941,8 +970,6 @@ export default function HomePage() {
               position: "relative",
               display: "flex",
               alignItems: "center",
-              flex: "0 1 320px",
-              minWidth: "160px",
             }}
           >
             <Search
@@ -1534,6 +1561,8 @@ export default function HomePage() {
               <div
                 key={toastItem.id}
                 className="kb-toast"
+                onMouseEnter={() => pauseToastTimer(toastItem.id)}
+                onMouseLeave={() => resumeToastTimer(toastItem.id)}
                 style={{
                   animation: toastItem.animatingOut
                     ? "toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards"
@@ -1608,7 +1637,6 @@ export default function HomePage() {
 
         {/* Empty State (No Books Uploaded Yet) */}
         {!isLoading && books.length === 0 && (
-          <RevealSection className="kb-reveal-up">
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1686,13 +1714,11 @@ export default function HomePage() {
               <span>{t.addBook}</span>
             </button>
           </div>
-          </RevealSection>
         )}
 
         {/* Book Grid Area */}
         {!isLoading && books.length > 0 && filteredBooks.length > 0 && (
           <>
-            <RevealSection>
             <div
               style={{
                 marginBottom: "28px",
@@ -1726,7 +1752,6 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            </RevealSection>
 
             {groupedShelves ? (
               /* Bookshelf View */

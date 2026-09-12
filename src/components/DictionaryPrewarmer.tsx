@@ -34,12 +34,30 @@ export function DictionaryPrewarmer() {
       if (status.isReady) stop();
     }
 
-    check();
-    timer = setInterval(check, 4000);
+    const start = () => {
+      if (cancelled) return;
+      check();
+      timer = setInterval(check, 5000);
+    };
+
+    // Defer dictionary index pre-warming so critical rendering (FCP & LCP) on mobile connections is unhindered
+    let idleHandle: number | ReturnType<typeof setTimeout> | null = null;
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleHandle = (window as unknown as { requestIdleCallback: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback(start, { timeout: 2500 });
+    } else {
+      idleHandle = setTimeout(start, 1500);
+    }
 
     return () => {
       cancelled = true;
       stop();
+      if (idleHandle !== null) {
+        if (typeof window !== "undefined" && "cancelIdleCallback" in window && typeof idleHandle === "number") {
+          (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleHandle);
+        } else {
+          clearTimeout(idleHandle as ReturnType<typeof setTimeout>);
+        }
+      }
     };
   }, [setStatus]);
 

@@ -1,26 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
+import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-inter",
 });
 const notoSansJP = Noto_Sans_JP({
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "700"],
   display: "swap",
   preload: false,
   variable: "--font-noto-sans-jp",
-});
-const notoSerifJP = Noto_Serif_JP({
-  subsets: ["latin"],
-  weight: ["400"],
-  display: "swap",
-  preload: false,
-  variable: "--font-noto-serif-jp",
 });
 
 const SITE_URL = "https://readkotori.vercel.app";
@@ -78,8 +70,7 @@ const softwareAppJsonLd = {
   },
 };
 
-import { DictionaryPrewarmer } from "@/components/DictionaryPrewarmer";
-import { WebMcpTools } from "@/components/WebMcpTools";
+import { BackgroundServices } from "@/components/BackgroundServices";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -92,7 +83,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${notoSansJP.variable} ${notoSerifJP.variable}`}
+      className={`${inter.variable} ${notoSansJP.variable}`}
     >
       <head>
         <link rel="icon" href="/icon.png" type="image/png" />
@@ -103,8 +94,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen antialiased">
-        <DictionaryPrewarmer />
-        <WebMcpTools />
+        <BackgroundServices />
         {children}
         <Analytics />
         <SpeedInsights />

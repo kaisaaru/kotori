@@ -40,6 +40,7 @@ export interface ReaderSettings {
   ttsSpeed: number;
   enableDictionary?: boolean;
   dictTrigger?: "hover" | "shift" | "click";
+  lockChapterNav?: boolean;
 }
 
 export function getSystemTheme(): "light" | "dark" {
@@ -59,6 +60,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   ttsSpeed: 1,
   enableDictionary: true,
   dictTrigger: "click",
+  lockChapterNav: false,
 };
 
 export const FONT_FAMILIES = [
